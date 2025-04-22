@@ -10,7 +10,7 @@ Set up directories
 ```{r setup, include=TRUE}
 library("here")
 dir <- setwd(here())
-knitr::opts_knit$set(root.dir = "~/Mac/Dropbox/Desktop/Ezekiel?Eastern Scotian Shelf Model/Eastern-Scotian-Shelf-Model/Eastern-Scotian-Shelf-Model/Eastern-Scotian-Shelf-Model/")
+knitr::opts_knit$set(root.dir = "~/Mac/Dropbox/Desktop/Eastern-Scotian-Shelf-Model/")
 knitr::opts_knit$set(root.dir = dir)
 
 # Define the save directory

@@ -28,7 +28,7 @@ Set up directories
 ```{r setup, include=TRUE}
 library("here")
 dir <- setwd(here())
-knitr::opts_knit$set(root.dir = "~/Mac/Dropbox/Desktop/Ezekiel?Eastern Scotian Shelf Model/Eastern-Scotian-Shelf-Model/Eastern-Scotian-Shelf-Model/Eastern-Scotian-Shelf-Model/")
+knitr::opts_knit$set(root.dir = "~/Mac/Dropbox/Desktop/Eastern-Scotian-Shelf-Model/")
 knitr::opts_knit$set(root.dir = dir)
 
 # Define the save directory
@@ -1296,7 +1296,7 @@ biomass_plot <- biomass_extract1 %>%
 # Print the plot
 print(biomass_plot)
 
-ggsave(filename = paste0(save_dir, "biomass_plot.jpeg"), plot = biomass_plot, width = 13, height = 9, units = "in", dpi = 300)
+#ggsave(filename = paste0(save_dir, "biomass_plot.jpeg"), plot = biomass_plot, width = 13, height = 9, units = "in", dpi = 300)
 
 ```
 
