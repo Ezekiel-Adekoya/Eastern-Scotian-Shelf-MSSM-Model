@@ -1,6 +1,6 @@
 ---
-title: "Workflow"
-author: "Julia BLanchard"
+title: "Schematic Workflow"
+author: "Julia BLanchard/ Ezekiel Adekoya"
 date: "2025-01-31"
 output:
    github_document:
