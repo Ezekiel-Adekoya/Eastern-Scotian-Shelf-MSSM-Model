@@ -123,7 +123,7 @@ sims_scen1 <- run_random_sims(params_with_seal, n_sims = 1000,effort_scen=effort
 sims_scen2 <- run_random_sims(params_with_seal, n_sims = 1000,effort_scen=effort_with_seal,sd=0.2)
 
 # Save sim outputs
-# saveRDS(sims_scen1,"Ess_output/sims_scen1.RDS")
+#saveRDS(sims_scen1,"Ess_output/sims_scen1.RDS")
  #saveRDS(sims_scen2,"Ess_output/sims_scen2.RDS")
 
 sims_scen1<-readRDS("Ess_output/sims_scen1.RDS")
