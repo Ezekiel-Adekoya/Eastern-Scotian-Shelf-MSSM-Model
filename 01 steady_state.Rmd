@@ -1194,7 +1194,7 @@ yield_plot <- yield_extract1 %>%
 print(yield_plot)
 
 
-ggsave(filename = paste0(save_dir, "yield_plot.jpeg"), plot = yield_plot, width = 13, height = 9, units = "in", dpi = 300)
+#ggsave(filename = paste0(save_dir, "yield_plot.jpeg"), plot = yield_plot, width = 13, height = 9, units = "in", dpi = 300)
 yield_plot
 ```
 
