@@ -1,5 +1,5 @@
 ---
-title: "Schematic Workflow"
+title: "Workflow diagram"
 author: "Julia BLanchard/ Ezekiel Adekoya"
 date: "2025-01-31"
 output:
