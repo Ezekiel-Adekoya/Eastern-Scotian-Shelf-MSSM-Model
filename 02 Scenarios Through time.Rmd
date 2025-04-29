@@ -6,7 +6,6 @@ output: html_document
 ---
 
 Set up directories
-
 ```{r setup, include=TRUE}
 library("here")
 dir <- setwd(here())
@@ -627,6 +626,7 @@ cor_results <- ggplot(cor_results_long, aes(x = Variable, y = value, fill = scen
     legend.position = "right",
     panel.grid.major = element_blank()
   )
+# Correlation between scenarios
 cor_results
 
 ggsave(filename = paste0(save_dir, "cor_results.jpeg"), plot = cor_results,
