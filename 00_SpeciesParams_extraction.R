@@ -1,4 +1,4 @@
-#SpeciesParams_extraction
+#. SpeciesParams_extraction from fishbase
 
 library(rfishbase)
 library(tidyverse)
