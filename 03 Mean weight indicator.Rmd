@@ -1,0 +1,1799 @@
+---
+title: "Mean weight of species for each scenario"
+author: "Ezekiel"
+date: "2025-03-27"
+output: Mean weight of species per scenario
+---
+
+Directory Set-up
+```{r setup, include=FALSE}
+library("here")
+library(ggpubr)
+library(dplyr)
+library(mizer)
+library("assertthat")
+library("optimParallel")
+library("here")
+library("tidyr")
+library(dplyr)
+#library("nloptr")
+library(mizerExperimental)
+library(tidyverse)
+library(mizerHowTo)
+library(pbapply)
+library(openair)
+library(patchwork)
+dir <- setwd(here())
+knitr::opts_knit$set(root.dir = "~/Mac/Dropbox/Desktop/Ezekiel/Eastern Scotian Shelf Model/Eastern-Scotian-Shelf-Model/")
+knitr::opts_knit$set(root.dir = dir)
+
+# Define the save directory
+save_dir <- paste0(here(), "/Ess_Output/")
+```
+
+Extraction of  data
+```{r}
+biomass_extract <- read.csv("Ess_data/biomass_extract.csv")
+yield_extract <- read.csv("Ess_data/yield_extract.csv")
+biomass_sim_base<- read.csv("Ess_data/biomass_sim_base.csv")
+biomass_sim_opt<- read.csv("Ess_data/biomass_sim_opt.csv")
+yield_sim_base<- read.csv("Ess_data/yield_sim_base.csv")
+yield_sim_opt<- read.csv("Ess_data/yield_sim_opt.csv")
+biomass_ts<-readRDS("Ess_data/biomass_ts.RDS")
+biomass_ts<-biomass_ts |> rename(Biomass_Obs=Biomass) 
+yield_ts<-readRDS("Ess_data/yield_ts.RDS")
+yield_ts<-yield_ts |> rename(Yield_Obs=Yield)
+#biomass_cutoff<- read.csv("Ess_data/biomass_cutoff.csv")
+```
+
+Get biomass per Scenario
+```{r}
+sims_scen1 <- readRDS("Ess_output/sims_scen1.RDS")
+sims_scen2 <- readRDS("Ess_output/sims_scen2.RDS")
+sim_bio<-lapply(sims_scen1,getBiomass,min_w=species_params(params)$biomass_cutoff)
+sim_bio2<-lapply(sims_scen2,getBiomass,min_w=species_params(params)$biomass_cutoff)
+
+df_sim_bio<-do.call(rbind.data.frame, sim_bio)
+df_sim_bio$sim<-rep(1:100, each=41)
+df_sim_bio$year<-rep(1970:2010,100)
+
+df_sim_bio2 <-do.call(rbind.data.frame, sim_bio2)
+df_sim_bio2$sim <-rep(1:100, each=41)
+df_sim_bio2$year<-rep(1970:2010,100)
+
+```
+
+MeanWeight plot
+Data cleaning 
+```{r}
+# Load and clean biomass per length data
+biop <- read.csv("Ess_data/biomass_at_length_DFO_model_spp.csv") %>%
+  # Convert data from wide to long format
+  pivot_longer(!c(length_cm, YEAR), names_to = "SPECIES", values_to = "BIOMASS") %>%
+  # Optional filter: Uncomment to remove lengths < 10 cm
+  # filter(length_cm >= 10) %>%
+  # Aggregate total biomass by year and species
+  group_by(YEAR, SPECIES) %>%
+  summarise(BIOMASS = sum(BIOMASS, na.rm = TRUE), .groups = "drop") %>%
+  # Convert data back to wide format with species as columns
+  pivot_wider(names_from = SPECIES, values_from = BIOMASS) %>%
+  ungroup()
+
+# Rename species columns for consistency and clarity
+biop <- biop %>%
+  rename(
+    "AMERICAN PLAICE" = AMERICAN.PLAICE,
+    "ATLANTIC COD" = COD.ATLANTIC.,
+    "HERRING" = HERRING.ATLANTIC.,
+    "ATLANTIC HALIBUT" = ATLANTIC.HALIBUT,
+    "REDFISH UNSEPARATED" = REDFISH.UNSEPARATED,
+    "GREENLAND HALIBUT" = TURBOT..GREENLAND.HALIBUT,
+    "HADDOCK" = HADDOCK,
+    "SANDLANCES" = SANDLANCES,
+    "SILVER HAKE" = SILVER.HAKE,
+    "SPINY DOGFISH" = SPINY.DOGFISH,
+    "WHITE HAKE" = WHITE.HAKE,
+    "WITCH FLOUNDER" = WITCH.FLOUNDER,
+    "YELLOWTAIL FLOUNDER" = YELLOWTAIL.FLOUNDER
+  )
+
+# Replace zeros with NA and convert biomass to grams (assuming original is in kg)
+biop[, 2:14] <- ifelse(as.matrix(biop[, 2:14]) == 0, "NA", as.matrix(biop[, 2:14]) * 1000)
+# Ensure columns are numeric after transformation
+biop <- biop %>%
+  mutate(across(2:14, as.numeric))
+
+# Load and clean abundance per length data
+m <- read.csv("Ess_data/abundance_at_length_DFO_model_spp.csv") %>%
+  # Convert from wide to long format
+  pivot_longer(!c(length_cm, YEAR), names_to = "SPECIES", values_to = "ABUNDANCE") %>%
+  # Optional filter for length
+  # filter(length_cm >= 10) %>%
+  # Aggregate total abundance by year and species
+  group_by(YEAR, SPECIES) %>%
+  summarise(ABUNDANCE = sum(ABUNDANCE, na.rm = TRUE), .groups = "drop") %>%
+  # Convert to wide format with species as columns
+  pivot_wider(names_from = SPECIES, values_from = ABUNDANCE)
+
+# Rename species columns to match those in biomass data
+m <- m %>%
+  rename(
+    "AMERICAN PLAICE" = AMERICAN.PLAICE,
+    "ATLANTIC COD" = COD.ATLANTIC.,
+    "HERRING" = HERRING.ATLANTIC.,
+    "ATLANTIC HALIBUT" = ATLANTIC.HALIBUT,
+    "REDFISH UNSEPARATED" = REDFISH.UNSEPARATED,
+    "GREENLAND HALIBUT" = TURBOT..GREENLAND.HALIBUT,
+    "HADDOCK" = HADDOCK,
+    "SANDLANCES" = SANDLANCES,
+    "SILVER HAKE" = SILVER.HAKE,
+    "SPINY DOGFISH" = SPINY.DOGFISH,
+    "WHITE HAKE" = WHITE.HAKE,
+    "WITCH FLOUNDER" = WITCH.FLOUNDER,
+    "YELLOWTAIL FLOUNDER" = YELLOWTAIL.FLOUNDER
+  )
+
+# Replace zeros with NA and keep abundance units as is
+m[, 2:14] <- ifelse(as.matrix(m[, 2:14]) == 0, "NA", as.matrix(m[, 2:14]))
+# Ensure numeric columns
+m <- m %>%
+  mutate(across(2:14, as.numeric))
+
+# Store biomass data in a new object for further processing
+biomass.p <- biop 
+
+# Identify common species between biomass and abundance datasets
+common_species <- intersect(names(biomass.p), names(m))
+
+# Calculate mean weight per individual (grams/individual)
+Mean_weight <- biop
+#Mean_weight[, c(2:14)] <- biop[, c(2:14)] / m[, c(2:14)]
+Mean_weight <- inner_join(biop, m, by = "YEAR", suffix = c("_bio", "_m")) %>%
+  mutate(across(ends_with("_bio"), 
+                ~ .x / get(sub("_bio", "_m", cur_column())), 
+                .names = "{sub('_bio', '', .col)}")) %>%
+  select(YEAR, all_of(names(biop)[-1]))
+ Mean_weight_by_species <- Mean_weight
+# write.csv(Mean_weight_by_species, file = "Ess_data/Mean_weight_by_species.csv", row.names = FALSE)
+```
+
+
+
+MeanWeight plot AMERICAN PLAICE
+```{r}
+# Load simulation outputs for Scenario 1
+sims_scen1 <- readRDS("Ess_output/sims_scen1.RDS")
+
+# Apply getMeanWeight() to each simulation run for AMERICAN PLAICE
+sim_mean <- lapply(
+  sims_scen1,
+  getMeanWeight,
+  min_w = biomass_cutoff$min_w[biomass_cutoff$Species == "AMERICAN PLAICE"], 
+  max_w = biomass_cutoff$max_w[biomass_cutoff$Species == "AMERICAN PLAICE"],
+  species = "AMERICAN PLAICE"
+)
+
+# Combine list of data frames into one
+df_sim_mean_dem <- do.call(rbind.data.frame, sim_mean)
+colnames(df_sim_mean_dem) <- paste0("Column_", 1:ncol(df_sim_mean_dem))  # Temporary column names
+
+# Convert to long format for analysis
+df_sim_mean_dem <- df_sim_mean_dem %>%
+  pivot_longer(cols = everything(), names_to = "year", values_to = "MeanWeight")
+
+# Assign actual years (1970–2010), recycling if needed
+df_sim_mean_dem$year <- rep(1970:2010, length.out = nrow(df_sim_mean_dem))
+
+# Summarise simulation results: median, min, and max across runs
+sim_dem1 <- df_sim_mean_dem %>%
+  mutate(Year = year, scen = "Scen1") %>%
+  group_by(Year, scen) %>%
+  summarise(
+    sim_mean = median(MeanWeight, na.rm = TRUE),
+    sim_lower = min(MeanWeight, na.rm = TRUE),
+    sim_upper = max(MeanWeight, na.rm = TRUE),
+    .groups = "drop"
+  ) %>%
+  filter(Year >= 1970 & Year <= 2010)
+
+# Prepare Scenario 1 simulation mean values for plotting
+sim_dem1_AMERICAN_PLAICE <- sim_dem1 %>%
+  select(Year, sim_mean) %>%
+  mutate(Species = "AMERICAN PLAICE")
+
+# Repeat the entire process for Scenario 2
+sims_scen2 <- readRDS("Ess_output/sims_scen2.RDS")
+
+sim_mean2 <- lapply(
+  sims_scen2,
+  getMeanWeight,
+  min_w = biomass_cutoff$min_w[biomass_cutoff$Species == "AMERICAN PLAICE"], 
+  max_w = biomass_cutoff$max_w[biomass_cutoff$Species == "AMERICAN PLAICE"],
+  species = "AMERICAN PLAICE"
+)
+
+df_sim_mean_dem2 <- do.call(rbind.data.frame, sim_mean2)
+colnames(df_sim_mean_dem2) <- paste0("Column_", 1:ncol(df_sim_mean_dem2))
+
+df_sim_mean_dem2 <- df_sim_mean_dem2 %>%
+  pivot_longer(cols = everything(), names_to = "year", values_to = "MeanWeight")
+
+df_sim_mean_dem2$year <- rep(1970:2010, length.out = nrow(df_sim_mean_dem2))
+
+sim_dem2 <- df_sim_mean_dem2 %>%
+  mutate(Year = year, scen = "Scen2") %>%
+  group_by(Year, scen) %>%
+  summarise(
+    sim_mean = median(MeanWeight, na.rm = TRUE),
+    sim_lower = min(MeanWeight, na.rm = TRUE),
+    sim_upper = max(MeanWeight, na.rm = TRUE),
+    .groups = "drop"
+  ) %>%
+  filter(Year >= 1970 & Year <= 2010)
+
+# Prepare Scenario 2 simulation mean values for plotting
+sim_dem2_AMERICAN_PLAICE <- sim_dem2 %>%
+  select(Year, sim_mean) %>%
+  mutate(Species = "AMERICAN PLAICE")
+
+# Load observed mean weight data for AMERICAN PLAICE
+MW <- data.frame(
+  Year = 1970:2010, 
+  MeanWeight = Mean_weight$`AMERICAN PLAICE`
+)
+
+# Merge observed data with Scenario 1 simulation output
+sim_dem1 <- left_join(sim_dem1, MW, by = "Year")
+
+# Merge observed data with Scenario 2 simulation output
+sim_dem2 <- left_join(sim_dem2, MW, by = "Year")
+
+# Label pre-1986 years as "Calibration" in Scenario 1 data
+time_seriess <- sim_dem1 %>%
+  mutate(scen = ifelse(Year < 1986, "Calibration", scen))
+
+# Tag Scenario 1 simulation data with species name
+time1_AMERICAN_PLAICE <- time_seriess %>%
+  mutate(Species = "AMERICAN PLAICE", .before = scen)
+
+# Label pre-1986 years as "Calibration" in Scenario 2 data
+time_seriess <- sim_dem2 %>%
+  mutate(scen = ifelse(Year < 1986, "Calibration", scen))
+
+# Tag Scenario 2 simulation data with species name
+time2_AMERICAN_PLAICE <- time_seriess %>%
+  mutate(Species = "AMERICAN PLAICE", .before = scen)
+
+```
+
+
+MeanWeight plot ATLANTIC COD
+```{r}
+# Load simulation outputs for scenario 1
+sims_scen1 <- readRDS("Ess_output/sims_scen1.RDS")
+sim_mean<-lapply(sims_scen1,getMeanWeight,
+min_w = biomass_cutoff$min_w[biomass_cutoff$Species == "COD(ATLANTIC)"], 
+max_w = biomass_cutoff$max_w[biomass_cutoff$Species == "COD(ATLANTIC)"],
+species = "COD(ATLANTIC)") 
+df_sim_mean_dem<-do.call(rbind.data.frame, sim_mean)
+colnames(df_sim_mean_dem) <- paste0("Column_", 1:ncol(df_sim_mean_dem))
+df_sim_mean_dem<- df_sim_mean_dem %>%pivot_longer(cols = everything(), names_to = "year", values_to = "MeanWeight")
+df_sim_mean_dem$year <- rep(1970:2010, length.out = nrow(df_sim_mean_dem))
+sim_dem1 <- df_sim_mean_dem |>
+  mutate(Year = year, scen = "Scen1") |>  
+  group_by(Year, scen) |>  
+  summarise(
+    sim_mean = median(MeanWeight, na.rm = TRUE),
+    sim_lower = min(MeanWeight, na.rm = TRUE),
+    sim_upper = max(MeanWeight, na.rm = TRUE),
+    .groups = "drop"
+  ) |> 
+  filter(Year >= 1970 & Year <= 2010)
+sim_dem1_COD <- sim_dem1 %>%
+  select(Year, sim_mean) %>%  # Keep only Year and sim_mean
+  mutate(Species = "COD(ATLANTIC)")  # Add Species column
+sims_scen2 <- readRDS("Ess_output/sims_scen2.RDS")
+sim_mean2<-lapply(sims_scen2,getMeanWeight,
+min_w = biomass_cutoff$min_w[biomass_cutoff$Species == "COD(ATLANTIC)"], 
+max_w = biomass_cutoff$max_w[biomass_cutoff$Species == "COD(ATLANTIC)"],
+species = "COD(ATLANTIC)") 
+df_sim_mean_dem2<-do.call(rbind.data.frame, sim_mean2)
+colnames(df_sim_mean_dem2) <- paste0("Column_", 1:ncol(df_sim_mean_dem2))
+df_sim_mean_dem2<- df_sim_mean_dem2 %>%pivot_longer(cols = everything(), names_to = "year", values_to = "MeanWeight")
+df_sim_mean_dem2$year <- rep(1970:2010, length.out = nrow(df_sim_mean_dem2))
+sim_dem2 <- df_sim_mean_dem2 |>
+  mutate(Year = year, scen = "Scen2") |>  
+  group_by(Year, scen) |>  
+  summarise(
+    sim_mean = median(MeanWeight, na.rm = TRUE),
+    sim_lower = min(MeanWeight, na.rm = TRUE),
+    sim_upper = max(MeanWeight, na.rm = TRUE),
+    .groups = "drop"
+  ) |> 
+  filter(Year >= 1970 & Year <= 2010)
+sim_dem2_COD <- sim_dem2 %>%
+  select(Year, sim_mean) %>%  # Keep only Year and sim_mean
+  mutate(Species = "COD(ATLANTIC)")  # Add Species column
+MW <- data.frame(Year = 1970:2010, 
+                  MeanWeight = Mean_weight$`ATLANTIC COD`)
+sim_dem1 <- left_join(sim_dem1, MW, by = "Year")
+sim_dem2 <- left_join(sim_dem2, MW, by = "Year")
+
+time_seriess <- sim_dem1
+time_seriess <- time_seriess |> rename(MeanWeight=MeanWeight)
+time_seriess <- time_seriess  %>%
+  mutate(scen = ifelse(Year<1986,
+                         "Calibration",scen))
+time1_COD  <- time_seriess %>%
+  mutate(Species = "ATLANTIC COD", .before = scen)
+
+time_seriess <- sim_dem2
+time_seriess <- time_seriess |> rename(MeanWeight=MeanWeight)
+time_seriess <- time_seriess  %>%
+  mutate(scen = ifelse(Year<1986,
+                         "Calibration",scen))
+time2_COD <- time_seriess %>%
+  mutate(Species = "ATLANTIC COD", .before = scen)
+
+```
+
+MeanWeight plot HERRINGS
+```{r}
+# Load simulation outputs for scenario 1
+sims_scen1 <- readRDS("Ess_output/sims_scen1.RDS")
+sim_mean<-lapply(sims_scen1,getMeanWeight,
+min_w = biomass_cutoff$min_w[biomass_cutoff$Species == "HERRING(ATLANTIC)"], 
+max_w = biomass_cutoff$max_w[biomass_cutoff$Species == "HERRING(ATLANTIC)"],
+species = "HERRING(ATLANTIC)") 
+df_sim_mean_dem<-do.call(rbind.data.frame, sim_mean)
+colnames(df_sim_mean_dem) <- paste0("Column_", 1:ncol(df_sim_mean_dem))
+df_sim_mean_dem<- df_sim_mean_dem %>%pivot_longer(cols = everything(), names_to = "year", values_to = "MeanWeight")
+df_sim_mean_dem$year <- rep(1970:2010, length.out = nrow(df_sim_mean_dem))
+sim_dem1 <- df_sim_mean_dem |>
+  mutate(Year = year, scen = "Scen1") |>  
+  group_by(Year, scen) |>  
+  summarise(
+    sim_mean = median(MeanWeight, na.rm = TRUE),
+    sim_lower = min(MeanWeight, na.rm = TRUE),
+    sim_upper = max(MeanWeight, na.rm = TRUE),
+    .groups = "drop"
+  ) |> 
+  filter(Year >= 1970 & Year <= 2010)
+sim_dem1_HERRING <- sim_dem1 %>%
+  select(Year, sim_mean) %>%  # Keep only Year and sim_mean
+  mutate(Species = "HERRING(ATLANTIC)")  # Add Species column
+sims_scen2 <- readRDS("Ess_output/sims_scen2.RDS")
+sim_mean2<-lapply(sims_scen2,getMeanWeight,
+min_w = biomass_cutoff$min_w[biomass_cutoff$Species == "HERRING(ATLANTIC)"], 
+max_w = biomass_cutoff$max_w[biomass_cutoff$Species == "HERRING(ATLANTIC)"],
+species = "HERRING(ATLANTIC)") 
+df_sim_mean_dem2<-do.call(rbind.data.frame, sim_mean2)
+colnames(df_sim_mean_dem2) <- paste0("Column_", 1:ncol(df_sim_mean_dem2))
+df_sim_mean_dem2<- df_sim_mean_dem2 %>%pivot_longer(cols = everything(), names_to = "year", values_to = "MeanWeight")
+df_sim_mean_dem2$year <- rep(1970:2010, length.out = nrow(df_sim_mean_dem2))
+sim_dem2 <- df_sim_mean_dem2 |>
+  mutate(Year = year, scen = "Scen2") |>  
+  group_by(Year, scen) |>  
+  summarise(
+    sim_mean = median(MeanWeight, na.rm = TRUE),
+    sim_lower = min(MeanWeight, na.rm = TRUE),
+    sim_upper = max(MeanWeight, na.rm = TRUE),
+    .groups = "drop"
+  ) |> 
+  filter(Year >= 1970 & Year <= 2010)
+sim_dem2_HERRING <- sim_dem2 %>%
+  select(Year, sim_mean) %>%  # Keep only Year and sim_mean
+  mutate(Species = "HERRING(ATLANTIC)")  # Add Species column
+MW <- data.frame(Year = 1970:2010, 
+                  MeanWeight = Mean_weight$HERRING)
+sim_dem1 <- left_join(sim_dem1, MW, by = "Year")
+sim_dem2 <- left_join(sim_dem2, MW, by = "Year")
+
+time_seriess <- sim_dem1
+time_seriess <- time_seriess |> rename(MeanWeight=MeanWeight)
+time_seriess <- time_seriess  %>%
+  mutate(scen = ifelse(Year<1986,
+                         "Calibration",scen))
+time1_HERRING  <- time_seriess %>%
+  mutate(Species = "HERRING", .before = scen)
+
+time_seriess <- sim_dem2
+time_seriess <- time_seriess |> rename(MeanWeight=MeanWeight)
+time_seriess <- time_seriess  %>%
+  mutate(scen = ifelse(Year<1986,
+                         "Calibration",scen))
+time2_HERRING <- time_seriess %>%
+  mutate(Species = "HERRING", .before = scen)
+
+```
+
+
+MeanWeight plot ATLANTIC HALIBUT
+```{r}
+# Load simulation outputs for Scenario 1
+sims_scen1 <- readRDS("Ess_output/sims_scen1.RDS")
+
+# Apply getMeanWeight() to each simulation run for ATLANTIC HALIBUT
+sim_mean <- lapply(
+  sims_scen1,
+  getMeanWeight,
+  min_w = biomass_cutoff$min_w[biomass_cutoff$Species == "ATLANTIC HALIBUT"], 
+  max_w = biomass_cutoff$max_w[biomass_cutoff$Species == "ATLANTIC HALIBUT"],
+  species = "ATLANTIC HALIBUT"
+)
+
+# Combine list of data frames into one
+df_sim_mean_dem <- do.call(rbind.data.frame, sim_mean)
+colnames(df_sim_mean_dem) <- paste0("Column_", 1:ncol(df_sim_mean_dem))  # Temporary column names
+
+# Convert to long format for analysis
+df_sim_mean_dem <- df_sim_mean_dem %>%
+  pivot_longer(cols = everything(), names_to = "year", values_to = "MeanWeight")
+
+# Assign actual years (1970–2010), recycling if needed
+df_sim_mean_dem$year <- rep(1970:2010, length.out = nrow(df_sim_mean_dem))
+
+# Summarise simulation results: median, min, and max across runs
+sim_dem1 <- df_sim_mean_dem %>%
+  mutate(Year = year, scen = "Scen1") %>%
+  group_by(Year, scen) %>%
+  summarise(
+    sim_mean = median(MeanWeight, na.rm = TRUE),
+    sim_lower = min(MeanWeight, na.rm = TRUE),
+    sim_upper = max(MeanWeight, na.rm = TRUE),
+    .groups = "drop"
+  ) %>%
+  filter(Year >= 1970 & Year <= 2010)
+
+# Prepare Scenario 1 simulation mean values for plotting
+sim_dem1_ATLANTIC_HALIBUT <- sim_dem1 %>%
+  select(Year, sim_mean) %>%
+  mutate(Species = "ATLANTIC HALIBUT")
+
+# Repeat the entire process for Scenario 2
+sims_scen2 <- readRDS("Ess_output/sims_scen2.RDS")
+
+sim_mean2 <- lapply(
+  sims_scen2,
+  getMeanWeight,
+  min_w = biomass_cutoff$min_w[biomass_cutoff$Species == "ATLANTIC HALIBUT"], 
+  max_w = biomass_cutoff$max_w[biomass_cutoff$Species == "ATLANTIC HALIBUT"],
+  species = "ATLANTIC HALIBUT"
+)
+
+df_sim_mean_dem2 <- do.call(rbind.data.frame, sim_mean2)
+colnames(df_sim_mean_dem2) <- paste0("Column_", 1:ncol(df_sim_mean_dem2))
+
+df_sim_mean_dem2 <- df_sim_mean_dem2 %>%
+  pivot_longer(cols = everything(), names_to = "year", values_to = "MeanWeight")
+
+df_sim_mean_dem2$year <- rep(1970:2010, length.out = nrow(df_sim_mean_dem2))
+
+sim_dem2 <- df_sim_mean_dem2 %>%
+  mutate(Year = year, scen = "Scen2") %>%
+  group_by(Year, scen) %>%
+  summarise(
+    sim_mean = median(MeanWeight, na.rm = TRUE),
+    sim_lower = min(MeanWeight, na.rm = TRUE),
+    sim_upper = max(MeanWeight, na.rm = TRUE),
+    .groups = "drop"
+  ) %>%
+  filter(Year >= 1970 & Year <= 2010)
+
+# Prepare Scenario 2 simulation mean values for plotting
+sim_dem2_ATLANTIC_HALIBUT <- sim_dem2 %>%
+  select(Year, sim_mean) %>%
+  mutate(Species = "ATLANTIC HALIBUT")
+
+# Load observed mean weight data for ATLANTIC HALIBUT
+MW <- data.frame(
+  Year = 1970:2010, 
+  MeanWeight = Mean_weight$`ATLANTIC HALIBUT`
+)
+
+# Merge observed data with Scenario 1 simulation output
+sim_dem1 <- left_join(sim_dem1, MW, by = "Year")
+
+# Merge observed data with Scenario 2 simulation output
+sim_dem2 <- left_join(sim_dem2, MW, by = "Year")
+
+# Label pre-1986 years as "Calibration" in Scenario 1 data
+time_seriess <- sim_dem1 %>%
+  mutate(scen = ifelse(Year < 1986, "Calibration", scen))
+
+# Tag Scenario 1 simulation data with species name
+time1_ATLANTIC_HALIBUT <- time_seriess %>%
+  mutate(Species = "ATLANTIC HALIBUT", .before = scen)
+
+# Label pre-1986 years as "Calibration" in Scenario 2 data
+time_seriess <- sim_dem2 %>%
+  mutate(scen = ifelse(Year < 1986, "Calibration", scen))
+
+# Tag Scenario 2 simulation data with species name
+time2_ATLANTIC_HALIBUT <- time_seriess %>%
+  mutate(Species = "ATLANTIC HALIBUT", .before = scen)
+
+```
+
+MeanWeight plot REDFISH UNSEPARATED
+```{r}
+
+# Load simulation outputs for Scenario 1
+sims_scen1 <- readRDS("Ess_output/sims_scen1.RDS")
+
+# Apply getMeanWeight() to each simulation run for REDFISH UNSEPARATED
+sim_mean <- lapply(
+  sims_scen1,
+  getMeanWeight,
+  min_w = biomass_cutoff$min_w[biomass_cutoff$Species == "REDFISH UNSEPARATED"], 
+  max_w = biomass_cutoff$max_w[biomass_cutoff$Species == "REDFISH UNSEPARATED"],
+  species = "REDFISH UNSEPARATED"
+)
+
+# Combine list of data frames into one
+df_sim_mean_dem <- do.call(rbind.data.frame, sim_mean)
+colnames(df_sim_mean_dem) <- paste0("Column_", 1:ncol(df_sim_mean_dem))  # Temporary column names
+
+# Convert to long format for analysis
+df_sim_mean_dem <- df_sim_mean_dem %>%
+  pivot_longer(cols = everything(), names_to = "year", values_to = "MeanWeight")
+
+# Assign actual years (1970–2010), recycling if needed
+df_sim_mean_dem$year <- rep(1970:2010, length.out = nrow(df_sim_mean_dem))
+
+# Summarise simulation results: median, min, and max across runs
+sim_dem1 <- df_sim_mean_dem %>%
+  mutate(Year = year, scen = "Scen1") %>%
+  group_by(Year, scen) %>%
+  summarise(
+    sim_mean = median(MeanWeight, na.rm = TRUE),
+    sim_lower = min(MeanWeight, na.rm = TRUE),
+    sim_upper = max(MeanWeight, na.rm = TRUE),
+    .groups = "drop"
+  ) %>%
+  filter(Year >= 1970 & Year <= 2010)
+
+# Prepare Scenario 1 simulation mean values for plotting
+sim_dem1_REDFISH_UNSEPARATED<- sim_dem1 %>%
+  select(Year, sim_mean) %>%
+  mutate(Species = "REDFISH UNSEPARATED")
+
+# Repeat the entire process for Scenario 2
+sims_scen2 <- readRDS("Ess_output/sims_scen2.RDS")
+
+sim_mean2 <- lapply(
+  sims_scen2,
+  getMeanWeight,
+  min_w = biomass_cutoff$min_w[biomass_cutoff$Species == "REDFISH UNSEPARATED"], 
+  max_w = biomass_cutoff$max_w[biomass_cutoff$Species == "REDFISH UNSEPARATED"],
+  species = "REDFISH UNSEPARATED"
+)
+
+df_sim_mean_dem2 <- do.call(rbind.data.frame, sim_mean2)
+colnames(df_sim_mean_dem2) <- paste0("Column_", 1:ncol(df_sim_mean_dem2))
+
+df_sim_mean_dem2 <- df_sim_mean_dem2 %>%
+  pivot_longer(cols = everything(), names_to = "year", values_to = "MeanWeight")
+
+df_sim_mean_dem2$year <- rep(1970:2010, length.out = nrow(df_sim_mean_dem2))
+
+sim_dem2 <- df_sim_mean_dem2 %>%
+  mutate(Year = year, scen = "Scen2") %>%
+  group_by(Year, scen) %>%
+  summarise(
+    sim_mean = median(MeanWeight, na.rm = TRUE),
+    sim_lower = min(MeanWeight, na.rm = TRUE),
+    sim_upper = max(MeanWeight, na.rm = TRUE),
+    .groups = "drop"
+  ) %>%
+  filter(Year >= 1970 & Year <= 2010)
+
+# Prepare Scenario 2 simulation mean values for plotting
+sim_dem2_REDFISH_UNSEPARATED<- sim_dem2 %>%
+  select(Year, sim_mean) %>%
+  mutate(Species = "REDFISH UNSEPARATED")
+
+# Load observed mean weight data for REDFISH UNSEPARATED
+MW <- data.frame(
+  Year = 1970:2010, 
+  MeanWeight = Mean_weight$`REDFISH UNSEPARATED`
+)
+
+# Merge observed data with Scenario 1 simulation output
+sim_dem1 <- left_join(sim_dem1, MW, by = "Year")
+
+# Merge observed data with Scenario 2 simulation output
+sim_dem2 <- left_join(sim_dem2, MW, by = "Year")
+
+# Label pre-1986 years as "Calibration" in Scenario 1 data
+time_seriess <- sim_dem1 %>%
+  mutate(scen = ifelse(Year < 1986, "Calibration", scen))
+
+# Tag Scenario 1 simulation data with species name
+time1_REDFISH<- time_seriess %>%
+  mutate(Species = "REDFISH UNSEPARATED", .before = scen)
+
+# Label pre-1986 years as "Calibration" in Scenario 2 data
+time_seriess <- sim_dem2 %>%
+  mutate(scen = ifelse(Year < 1986, "Calibration", scen))
+
+# Tag Scenario 2 simulation data with species name
+time2_REDFISH<- time_seriess %>%
+  mutate(Species = "REDFISH UNSEPARATED", .before = scen)
+```
+
+
+MeanWeight plot GREENLAND HALIBUT
+```{r}
+# Load simulation outputs for Scenario 1
+sims_scen1 <- readRDS("Ess_output/sims_scen1.RDS")
+
+# Apply getMeanWeight() to each simulation run for TURBOT, GREENLAND HALIBUT
+sim_mean <- lapply(
+  sims_scen1,
+  getMeanWeight,
+  min_w = biomass_cutoff$min_w[biomass_cutoff$Species == "TURBOT, GREENLAND HALIBUT"], 
+  max_w = biomass_cutoff$max_w[biomass_cutoff$Species == "TURBOT, GREENLAND HALIBUT"],
+  species = "TURBOT, GREENLAND HALIBUT"
+)
+
+# Combine list of data frames into one
+df_sim_mean_dem <- do.call(rbind.data.frame, sim_mean)
+colnames(df_sim_mean_dem) <- paste0("Column_", 1:ncol(df_sim_mean_dem))  # Temporary column names
+
+# Convert to long format for analysis
+df_sim_mean_dem <- df_sim_mean_dem %>%
+  pivot_longer(cols = everything(), names_to = "year", values_to = "MeanWeight")
+
+# Assign actual years (1970–2010), recycling if needed
+df_sim_mean_dem$year <- rep(1970:2010, length.out = nrow(df_sim_mean_dem))
+
+# Summarise simulation results: median, min, and max across runs
+sim_dem1 <- df_sim_mean_dem %>%
+  mutate(Year = year, scen = "Scen1") %>%
+  group_by(Year, scen) %>%
+  summarise(
+    sim_mean = median(MeanWeight, na.rm = TRUE),
+    sim_lower = min(MeanWeight, na.rm = TRUE),
+    sim_upper = max(MeanWeight, na.rm = TRUE),
+    .groups = "drop"
+  ) %>%
+  filter(Year >= 1970 & Year <= 2010)
+
+# Prepare Scenario 1 simulation mean values for plotting
+sim_dem1_GREENLAND <- sim_dem1 %>%
+  select(Year, sim_mean) %>%
+  mutate(Species = " GREENLAND HALIBUT")
+
+# Repeat the entire process for Scenario 2
+sims_scen2 <- readRDS("Ess_output/sims_scen2.RDS")
+
+sim_mean2 <- lapply(
+  sims_scen2,
+  getMeanWeight,
+  min_w = biomass_cutoff$min_w[biomass_cutoff$Species == "TURBOT, GREENLAND HALIBUT"], 
+  max_w = biomass_cutoff$max_w[biomass_cutoff$Species == "TURBOT, GREENLAND HALIBUT"],
+  species = "TURBOT, GREENLAND HALIBUT"
+)
+
+df_sim_mean_dem2 <- do.call(rbind.data.frame, sim_mean2)
+colnames(df_sim_mean_dem2) <- paste0("Column_", 1:ncol(df_sim_mean_dem2))
+
+df_sim_mean_dem2 <- df_sim_mean_dem2 %>%
+  pivot_longer(cols = everything(), names_to = "year", values_to = "MeanWeight")
+
+df_sim_mean_dem2$year <- rep(1970:2010, length.out = nrow(df_sim_mean_dem2))
+
+sim_dem2 <- df_sim_mean_dem2 %>%
+  mutate(Year = year, scen = "Scen2") %>%
+  group_by(Year, scen) %>%
+  summarise(
+    sim_mean = median(MeanWeight, na.rm = TRUE),
+    sim_lower = min(MeanWeight, na.rm = TRUE),
+    sim_upper = max(MeanWeight, na.rm = TRUE),
+    .groups = "drop"
+  ) %>%
+  filter(Year >= 1970 & Year <= 2010)
+
+# Prepare Scenario 2 simulation mean values for plotting
+sim_dem2_GREENLAND <- sim_dem2 %>%
+  select(Year, sim_mean) %>%
+  mutate(Species = "TURBOT, GREENLAND HALIBUT")
+
+# Load observed mean weight data for TURBOT, GREENLAND HALIBUT
+MW <- data.frame(
+  Year = 1970:2010, 
+  MeanWeight = Mean_weight$`GREENLAND HALIBUT`
+)
+
+# Merge observed data with Scenario 1 simulation output
+sim_dem1 <- left_join(sim_dem1, MW, by = "Year")
+
+# Merge observed data with Scenario 2 simulation output
+sim_dem2 <- left_join(sim_dem2, MW, by = "Year")
+
+# Label pre-1986 years as "Calibration" in Scenario 1 data
+time_seriess <- sim_dem1 %>%
+  mutate(scen = ifelse(Year < 1986, "Calibration", scen))
+
+# Tag Scenario 1 simulation data with species name
+time1_GREENLAND<- time_seriess %>%
+  mutate(Species = " GREENLAND HALIBUT", .before = scen)
+
+# Label pre-1986 years as "Calibration" in Scenario 2 data
+time_seriess <- sim_dem2 %>%
+  mutate(scen = ifelse(Year < 1986, "Calibration", scen))
+
+# Tag Scenario 2 simulation data with species name
+time2_GREENLAND<- time_seriess %>%
+  mutate(Species = "GREENLAND HALIBUT", .before = scen)
+
+```
+
+MeanWeight plot HADDOCK
+```{r}
+# Load simulation outputs for Scenario 1
+sims_scen1 <- readRDS("Ess_output/sims_scen1.RDS")
+
+# Apply getMeanWeight() to each simulation run for HADDOCK
+sim_mean <- lapply(
+  sims_scen1,
+  getMeanWeight,
+  min_w = biomass_cutoff$min_w[biomass_cutoff$Species == "HADDOCK"], 
+  max_w = biomass_cutoff$max_w[biomass_cutoff$Species == "HADDOCK"],
+  species = "HADDOCK"
+)
+
+# Combine list of data frames into one
+df_sim_mean_dem <- do.call(rbind.data.frame, sim_mean)
+colnames(df_sim_mean_dem) <- paste0("Column_", 1:ncol(df_sim_mean_dem))  # Temporary column names
+
+# Convert to long format for analysis
+df_sim_mean_dem <- df_sim_mean_dem %>%
+  pivot_longer(cols = everything(), names_to = "year", values_to = "MeanWeight")
+
+# Assign actual years (1970–2010), recycling if needed
+df_sim_mean_dem$year <- rep(1970:2010, length.out = nrow(df_sim_mean_dem))
+
+# Summarise simulation results: median, min, and max across runs
+sim_dem1 <- df_sim_mean_dem %>%
+  mutate(Year = year, scen = "Scen1") %>%
+  group_by(Year, scen) %>%
+  summarise(
+    sim_mean = median(MeanWeight, na.rm = TRUE),
+    sim_lower = min(MeanWeight, na.rm = TRUE),
+    sim_upper = max(MeanWeight, na.rm = TRUE),
+    .groups = "drop"
+  ) %>%
+  filter(Year >= 1970 & Year <= 2010)
+
+# Prepare Scenario 1 simulation mean values for plotting
+sim_dem1_HADDOCK<- sim_dem1 %>%
+  select(Year, sim_mean) %>%
+  mutate(Species = "HADDOCK")
+
+# Repeat the entire process for Scenario 2
+sims_scen2 <- readRDS("Ess_output/sims_scen2.RDS")
+
+sim_mean2 <- lapply(
+  sims_scen2,
+  getMeanWeight,
+  min_w = biomass_cutoff$min_w[biomass_cutoff$Species == "HADDOCK"], 
+  max_w = biomass_cutoff$max_w[biomass_cutoff$Species == "HADDOCK"],
+  species = "HADDOCK"
+)
+
+df_sim_mean_dem2 <- do.call(rbind.data.frame, sim_mean2)
+colnames(df_sim_mean_dem2) <- paste0("Column_", 1:ncol(df_sim_mean_dem2))
+
+df_sim_mean_dem2 <- df_sim_mean_dem2 %>%
+  pivot_longer(cols = everything(), names_to = "year", values_to = "MeanWeight")
+
+df_sim_mean_dem2$year <- rep(1970:2010, length.out = nrow(df_sim_mean_dem2))
+
+sim_dem2 <- df_sim_mean_dem2 %>%
+  mutate(Year = year, scen = "Scen2") %>%
+  group_by(Year, scen) %>%
+  summarise(
+    sim_mean = median(MeanWeight, na.rm = TRUE),
+    sim_lower = min(MeanWeight, na.rm = TRUE),
+    sim_upper = max(MeanWeight, na.rm = TRUE),
+    .groups = "drop"
+  ) %>%
+  filter(Year >= 1970 & Year <= 2010)
+
+# Prepare Scenario 2 simulation mean values for plotting
+sim_dem2_HADDOCK<- sim_dem2 %>%
+  select(Year, sim_mean) %>%
+  mutate(Species = "HADDOCK")
+
+# Load observed mean weight data for HADDOCK
+MW <- data.frame(
+  Year = 1970:2010, 
+  MeanWeight = Mean_weight$`HADDOCK`
+)
+
+# Merge observed data with Scenario 1 simulation output
+sim_dem1 <- left_join(sim_dem1, MW, by = "Year")
+
+# Merge observed data with Scenario 2 simulation output
+sim_dem2 <- left_join(sim_dem2, MW, by = "Year")
+
+# Label pre-1986 years as "Calibration" in Scenario 1 data
+time_seriess <- sim_dem1 %>%
+  mutate(scen = ifelse(Year < 1986, "Calibration", scen))
+
+# Tag Scenario 1 simulation data with species name
+time1_HADDOCK<- time_seriess %>%
+  mutate(Species = "HADDOCK", .before = scen)
+
+# Label pre-1986 years as "Calibration" in Scenario 2 data
+time_seriess <- sim_dem2 %>%
+  mutate(scen = ifelse(Year < 1986, "Calibration", scen))
+
+# Tag Scenario 2 simulation data with species name
+time2_HADDOCK<- time_seriess %>%
+  mutate(Species = "HADDOCK", .before = scen)
+```
+
+MeanWeight plot SANDLANCES
+```{r}
+# Load simulation outputs for Scenario 1
+sims_scen1 <- readRDS("Ess_output/sims_scen1.RDS")
+
+# Apply getMeanWeight() to each simulation run for  SANDLANCES
+sim_mean <- lapply(
+  sims_scen1,
+  getMeanWeight,
+  min_w = biomass_cutoff$min_w[biomass_cutoff$Species == "SANDLANCES"], 
+  max_w = biomass_cutoff$max_w[biomass_cutoff$Species == "SANDLANCES"],
+  species = " SANDLANCES"
+)
+
+# Combine list of data frames into one
+df_sim_mean_dem <- do.call(rbind.data.frame, sim_mean)
+colnames(df_sim_mean_dem) <- paste0("Column_", 1:ncol(df_sim_mean_dem))  # Temporary column names
+
+# Convert to long format for analysis
+df_sim_mean_dem <- df_sim_mean_dem %>%
+  pivot_longer(cols = everything(), names_to = "year", values_to = "MeanWeight")
+
+# Assign actual years (1970–2010), recycling if needed
+df_sim_mean_dem$year <- rep(1970:2010, length.out = nrow(df_sim_mean_dem))
+
+# Summarise simulation results: median, min, and max across runs
+sim_dem1 <- df_sim_mean_dem %>%
+  mutate(Year = year, scen = "Scen1") %>%
+  group_by(Year, scen) %>%
+  summarise(
+    sim_mean = median(MeanWeight, na.rm = TRUE),
+    sim_lower = min(MeanWeight, na.rm = TRUE),
+    sim_upper = max(MeanWeight, na.rm = TRUE),
+    .groups = "drop"
+  ) %>%
+  filter(Year >= 1970 & Year <= 2010)
+
+# Prepare Scenario 1 simulation mean values for plotting
+sim_dem1_SANDLANCES<- sim_dem1 %>%
+  select(Year, sim_mean) %>%
+  mutate(Species = "SANDLANCES")
+
+# Repeat the entire process for Scenario 2
+sims_scen2 <- readRDS("Ess_output/sims_scen2.RDS")
+
+sim_mean2 <- lapply(
+  sims_scen2,
+  getMeanWeight,
+  min_w = biomass_cutoff$min_w[biomass_cutoff$Species == "SANDLANCES"], 
+  max_w = biomass_cutoff$max_w[biomass_cutoff$Species == "SANDLANCES"],
+  species = "SANDLANCES"
+)
+
+df_sim_mean_dem2 <- do.call(rbind.data.frame, sim_mean2)
+colnames(df_sim_mean_dem2) <- paste0("Column_", 1:ncol(df_sim_mean_dem2))
+
+df_sim_mean_dem2 <- df_sim_mean_dem2 %>%
+  pivot_longer(cols = everything(), names_to = "year", values_to = "MeanWeight")
+
+df_sim_mean_dem2$year <- rep(1970:2010, length.out = nrow(df_sim_mean_dem2))
+
+sim_dem2 <- df_sim_mean_dem2 %>%
+  mutate(Year = year, scen = "Scen2") %>%
+  group_by(Year, scen) %>%
+  summarise(
+    sim_mean = median(MeanWeight, na.rm = TRUE),
+    sim_lower = min(MeanWeight, na.rm = TRUE),
+    sim_upper = max(MeanWeight, na.rm = TRUE),
+    .groups = "drop"
+  ) %>%
+  filter(Year >= 1970 & Year <= 2010)
+
+# Prepare Scenario 2 simulation mean values for plotting
+sim_dem2_SANDLANCES<- sim_dem2 %>%
+  select(Year, sim_mean) %>%
+  mutate(Species = "SANDLANCES")
+
+# Load observed mean weight data for  SANDLANCES
+MW <- data.frame(
+  Year = 1970:2010, 
+  MeanWeight = Mean_weight$`SANDLANCES`
+)
+
+# Merge observed data with Scenario 1 simulation output
+sim_dem1 <- left_join(sim_dem1, MW, by = "Year")
+
+# Merge observed data with Scenario 2 simulation output
+sim_dem2 <- left_join(sim_dem2, MW, by = "Year")
+
+# Label pre-1986 years as "Calibration" in Scenario 1 data
+time_seriess <- sim_dem1 %>%
+  mutate(scen = ifelse(Year < 1986, "Calibration", scen))
+
+# Tag Scenario 1 simulation data with species name
+time1_SANDLANCES<- time_seriess %>%
+  mutate(Species = "SANDLANCES", .before = scen)
+
+# Label pre-1986 years as "Calibration" in Scenario 2 data
+time_seriess <- sim_dem2 %>%
+  mutate(scen = ifelse(Year < 1986, "Calibration", scen))
+
+# Tag Scenario 2 simulation data with species name
+time2_SANDLANCES<- time_seriess %>%
+  mutate(Species = "SANDLANCES", .before = scen)
+
+```
+
+MeanWeight plot SILVER HAKE
+```{r}
+# Load simulation outputs for Scenario 1
+sims_scen1 <- readRDS("Ess_output/sims_scen1.RDS")
+
+# Apply getMeanWeight() to each simulation run for SILVER HAKE
+sim_mean <- lapply(
+  sims_scen1,
+  getMeanWeight,
+  min_w = biomass_cutoff$min_w[biomass_cutoff$Species == "SILVER HAKE"], 
+  max_w = biomass_cutoff$max_w[biomass_cutoff$Species == "SILVER HAKE"],
+  species = "SILVER HAKE"
+)
+
+# Combine list of data frames into one
+df_sim_mean_dem <- do.call(rbind.data.frame, sim_mean)
+colnames(df_sim_mean_dem) <- paste0("Column_", 1:ncol(df_sim_mean_dem))  # Temporary column names
+
+# Convert to long format for analysis
+df_sim_mean_dem <- df_sim_mean_dem %>%
+  pivot_longer(cols = everything(), names_to = "year", values_to = "MeanWeight")
+
+# Assign actual years (1970–2010), recycling if needed
+df_sim_mean_dem$year <- rep(1970:2010, length.out = nrow(df_sim_mean_dem))
+
+# Summarise simulation results: median, min, and max across runs
+sim_dem1 <- df_sim_mean_dem %>%
+  mutate(Year = year, scen = "Scen1") %>%
+  group_by(Year, scen) %>%
+  summarise(
+    sim_mean = median(MeanWeight, na.rm = TRUE),
+    sim_lower = min(MeanWeight, na.rm = TRUE),
+    sim_upper = max(MeanWeight, na.rm = TRUE),
+    .groups = "drop"
+  ) %>%
+  filter(Year >= 1970 & Year <= 2010)
+
+# Prepare Scenario 1 simulation mean values for plotting
+sim_dem1_SILVER_HAKE<- sim_dem1 %>%
+  select(Year, sim_mean) %>%
+  mutate(Species = "SILVER HAKE")
+
+# Repeat the entire process for Scenario 2
+sims_scen2 <- readRDS("Ess_output/sims_scen2.RDS")
+
+sim_mean2 <- lapply(
+  sims_scen2,
+  getMeanWeight,
+  min_w = biomass_cutoff$min_w[biomass_cutoff$Species == "SILVER HAKE"], 
+  max_w = biomass_cutoff$max_w[biomass_cutoff$Species == "SILVER HAKE"],
+  species = "SILVER HAKE"
+)
+
+df_sim_mean_dem2 <- do.call(rbind.data.frame, sim_mean2)
+colnames(df_sim_mean_dem2) <- paste0("Column_", 1:ncol(df_sim_mean_dem2))
+
+df_sim_mean_dem2 <- df_sim_mean_dem2 %>%
+  pivot_longer(cols = everything(), names_to = "year", values_to = "MeanWeight")
+
+df_sim_mean_dem2$year <- rep(1970:2010, length.out = nrow(df_sim_mean_dem2))
+
+sim_dem2 <- df_sim_mean_dem2 %>%
+  mutate(Year = year, scen = "Scen2") %>%
+  group_by(Year, scen) %>%
+  summarise(
+    sim_mean = median(MeanWeight, na.rm = TRUE),
+    sim_lower = min(MeanWeight, na.rm = TRUE),
+    sim_upper = max(MeanWeight, na.rm = TRUE),
+    .groups = "drop"
+  ) %>%
+  filter(Year >= 1970 & Year <= 2010)
+
+# Prepare Scenario 2 simulation mean values for plotting
+sim_dem2_SILVER_HAKE<- sim_dem2 %>%
+  select(Year, sim_mean) %>%
+  mutate(Species = "SILVER HAKE")
+
+# Load observed mean weight data for SILVER HAKE
+MW <- data.frame(
+  Year = 1970:2010, 
+  MeanWeight = Mean_weight$`SILVER HAKE`
+)
+
+# Merge observed data with Scenario 1 simulation output
+sim_dem1 <- left_join(sim_dem1, MW, by = "Year")
+
+# Merge observed data with Scenario 2 simulation output
+sim_dem2 <- left_join(sim_dem2, MW, by = "Year")
+
+# Label pre-1986 years as "Calibration" in Scenario 1 data
+time_seriess <- sim_dem1 %>%
+  mutate(scen = ifelse(Year < 1986, "Calibration", scen))
+
+# Tag Scenario 1 simulation data with species name
+time1_SILVER_HAKE<- time_seriess %>%
+  mutate(Species = "SILVER HAKE", .before = scen)
+
+# Label pre-1986 years as "Calibration" in Scenario 2 data
+time_seriess <- sim_dem2 %>%
+  mutate(scen = ifelse(Year < 1986, "Calibration", scen))
+
+# Tag Scenario 2 simulation data with species name
+time2_SILVER_HAKE<- time_seriess %>%
+  mutate(Species = "SILVER HAKE", .before = scen)
+
+```
+
+MeanWeight plot SPINY DOGFISH
+```{r}
+# Load simulation outputs for Scenario 1
+sims_scen1 <- readRDS("Ess_output/sims_scen1.RDS")
+
+# Apply getMeanWeight() to each simulation run for SPINY DOGFISH
+sim_mean <- lapply(
+  sims_scen1,
+  getMeanWeight,
+  min_w = biomass_cutoff$min_w[biomass_cutoff$Species == "SPINY DOGFISH"], 
+  max_w = biomass_cutoff$max_w[biomass_cutoff$Species == "SPINY DOGFISH"],
+  species = "SPINY DOGFISH"
+)
+
+# Combine list of data frames into one
+df_sim_mean_dem <- do.call(rbind.data.frame, sim_mean)
+colnames(df_sim_mean_dem) <- paste0("Column_", 1:ncol(df_sim_mean_dem))  # Temporary column names
+
+# Convert to long format for analysis
+df_sim_mean_dem <- df_sim_mean_dem %>%
+  pivot_longer(cols = everything(), names_to = "year", values_to = "MeanWeight")
+
+# Assign actual years (1970–2010), recycling if needed
+df_sim_mean_dem$year <- rep(1970:2010, length.out = nrow(df_sim_mean_dem))
+
+# Summarise simulation results: median, min, and max across runs
+sim_dem1 <- df_sim_mean_dem %>%
+  mutate(Year = year, scen = "Scen1") %>%
+  group_by(Year, scen) %>%
+  summarise(
+    sim_mean = median(MeanWeight, na.rm = TRUE),
+    sim_lower = min(MeanWeight, na.rm = TRUE),
+    sim_upper = max(MeanWeight, na.rm = TRUE),
+    .groups = "drop"
+  ) %>%
+  filter(Year >= 1970 & Year <= 2010)
+
+# Prepare Scenario 1 simulation mean values for plotting
+sim_dem1_SPINY_DOGFISH<- sim_dem1 %>%
+  select(Year, sim_mean) %>%
+  mutate(Species = "SPINY DOGFISH")
+
+# Repeat the entire process for Scenario 2
+sims_scen2 <- readRDS("Ess_output/sims_scen2.RDS")
+
+sim_mean2 <- lapply(
+  sims_scen2,
+  getMeanWeight,
+  min_w = biomass_cutoff$min_w[biomass_cutoff$Species == "SPINY DOGFISH"], 
+  max_w = biomass_cutoff$max_w[biomass_cutoff$Species == "SPINY DOGFISH"],
+  species = "SPINY DOGFISH"
+)
+
+df_sim_mean_dem2 <- do.call(rbind.data.frame, sim_mean2)
+colnames(df_sim_mean_dem2) <- paste0("Column_", 1:ncol(df_sim_mean_dem2))
+
+df_sim_mean_dem2 <- df_sim_mean_dem2 %>%
+  pivot_longer(cols = everything(), names_to = "year", values_to = "MeanWeight")
+
+df_sim_mean_dem2$year <- rep(1970:2010, length.out = nrow(df_sim_mean_dem2))
+
+sim_dem2 <- df_sim_mean_dem2 %>%
+  mutate(Year = year, scen = "Scen2") %>%
+  group_by(Year, scen) %>%
+  summarise(
+    sim_mean = median(MeanWeight, na.rm = TRUE),
+    sim_lower = min(MeanWeight, na.rm = TRUE),
+    sim_upper = max(MeanWeight, na.rm = TRUE),
+    .groups = "drop"
+  ) %>%
+  filter(Year >= 1970 & Year <= 2010)
+
+# Prepare Scenario 2 simulation mean values for plotting
+sim_dem2_SPINY_DOGFISH<- sim_dem2 %>%
+  select(Year, sim_mean) %>%
+  mutate(Species = "SPINY DOGFISH")
+
+# Load observed mean weight data for SPINY DOGFISH
+MW <- data.frame(
+  Year = 1970:2010, 
+  MeanWeight = Mean_weight$`SPINY DOGFISH`
+)
+
+# Merge observed data with Scenario 1 simulation output
+sim_dem1 <- left_join(sim_dem1, MW, by = "Year")
+
+# Merge observed data with Scenario 2 simulation output
+sim_dem2 <- left_join(sim_dem2, MW, by = "Year")
+
+# Label pre-1986 years as "Calibration" in Scenario 1 data
+time_seriess <- sim_dem1 %>%
+  mutate(scen = ifelse(Year < 1986, "Calibration", scen))
+
+# Tag Scenario 1 simulation data with species name
+time1_SPINY_DOGFISH<- time_seriess %>%
+  mutate(Species = "SPINY DOGFISH", .before = scen)
+
+# Label pre-1986 years as "Calibration" in Scenario 2 data
+time_seriess <- sim_dem2 %>%
+  mutate(scen = ifelse(Year < 1986, "Calibration", scen))
+
+# Tag Scenario 2 simulation data with species name
+time2_SPINY_DOGFISH<- time_seriess %>%
+  mutate(Species = "SPINY DOGFISH", .before = scen)
+
+```
+
+
+MeanWeight plot WHITE HAKE
+```{r}
+# Load simulation outputs for Scenario 1
+sims_scen1 <- readRDS("Ess_output/sims_scen1.RDS")
+
+# Apply getMeanWeight() to each simulation run for WHITE HAKE
+sim_mean <- lapply(
+  sims_scen1,
+  getMeanWeight,
+  min_w = biomass_cutoff$min_w[biomass_cutoff$Species == "WHITE HAKE"], 
+  max_w = biomass_cutoff$max_w[biomass_cutoff$Species == "WHITE HAKE"],
+  species = "WHITE HAKE"
+)
+
+# Combine list of data frames into one
+df_sim_mean_dem <- do.call(rbind.data.frame, sim_mean)
+colnames(df_sim_mean_dem) <- paste0("Column_", 1:ncol(df_sim_mean_dem))  # Temporary column names
+
+# Convert to long format for analysis
+df_sim_mean_dem <- df_sim_mean_dem %>%
+  pivot_longer(cols = everything(), names_to = "year", values_to = "MeanWeight")
+
+# Assign actual years (1970–2010), recycling if needed
+df_sim_mean_dem$year <- rep(1970:2010, length.out = nrow(df_sim_mean_dem))
+
+# Summarise simulation results: median, min, and max across runs
+sim_dem1 <- df_sim_mean_dem %>%
+  mutate(Year = year, scen = "Scen1") %>%
+  group_by(Year, scen) %>%
+  summarise(
+    sim_mean = median(MeanWeight, na.rm = TRUE),
+    sim_lower = min(MeanWeight, na.rm = TRUE),
+    sim_upper = max(MeanWeight, na.rm = TRUE),
+    .groups = "drop"
+  ) %>%
+  filter(Year >= 1970 & Year <= 2010)
+
+# Prepare Scenario 1 simulation mean values for plotting
+sim_dem1_WHITE_HAKE<- sim_dem1 %>%
+  select(Year, sim_mean) %>%
+  mutate(Species = "WHITE HAKE")
+
+# Repeat the entire process for Scenario 2
+sims_scen2 <- readRDS("Ess_output/sims_scen2.RDS")
+
+sim_mean2 <- lapply(
+  sims_scen2,
+  getMeanWeight,
+  min_w = biomass_cutoff$min_w[biomass_cutoff$Species == "WHITE HAKE"], 
+  max_w = biomass_cutoff$max_w[biomass_cutoff$Species == "WHITE HAKE"],
+  species = "WHITE HAKE"
+)
+
+df_sim_mean_dem2 <- do.call(rbind.data.frame, sim_mean2)
+colnames(df_sim_mean_dem2) <- paste0("Column_", 1:ncol(df_sim_mean_dem2))
+
+df_sim_mean_dem2 <- df_sim_mean_dem2 %>%
+  pivot_longer(cols = everything(), names_to = "year", values_to = "MeanWeight")
+
+df_sim_mean_dem2$year <- rep(1970:2010, length.out = nrow(df_sim_mean_dem2))
+
+sim_dem2 <- df_sim_mean_dem2 %>%
+  mutate(Year = year, scen = "Scen2") %>%
+  group_by(Year, scen) %>%
+  summarise(
+    sim_mean = median(MeanWeight, na.rm = TRUE),
+    sim_lower = min(MeanWeight, na.rm = TRUE),
+    sim_upper = max(MeanWeight, na.rm = TRUE),
+    .groups = "drop"
+  ) %>%
+  filter(Year >= 1970 & Year <= 2010)
+
+# Prepare Scenario 2 simulation mean values for plotting
+sim_dem2_WHITE_HAKE<- sim_dem2 %>%
+  select(Year, sim_mean) %>%
+  mutate(Species = "WHITE HAKE")
+
+# Load observed mean weight data for WHITE HAKE
+MW <- data.frame(
+  Year = 1970:2010, 
+  MeanWeight = Mean_weight$`WHITE HAKE`
+)
+
+# Merge observed data with Scenario 1 simulation output
+sim_dem1 <- left_join(sim_dem1, MW, by = "Year")
+
+# Merge observed data with Scenario 2 simulation output
+sim_dem2 <- left_join(sim_dem2, MW, by = "Year")
+
+# Label pre-1986 years as "Calibration" in Scenario 1 data
+time_seriess <- sim_dem1 %>%
+  mutate(scen = ifelse(Year < 1986, "Calibration", scen))
+
+# Tag Scenario 1 simulation data with species name
+time1_WHITE_HAKE<- time_seriess %>%
+  mutate(Species = "WHITE HAKE", .before = scen)
+
+# Label pre-1986 years as "Calibration" in Scenario 2 data
+time_seriess <- sim_dem2 %>%
+  mutate(scen = ifelse(Year < 1986, "Calibration", scen))
+
+# Tag Scenario 2 simulation data with species name
+time2_WHITE_HAKE<- time_seriess %>%
+  mutate(Species = "WHITE HAKE", .before = scen)
+
+```
+
+
+MeanWeight plot WITCH FLOUNDER
+```{r}
+# Load simulation outputs for Scenario 1
+sims_scen1 <- readRDS("Ess_output/sims_scen1.RDS")
+
+# Apply getMeanWeight() to each simulation run for  WITCH FLOUNDER
+sim_mean <- lapply(
+  sims_scen1,
+  getMeanWeight,
+  min_w = biomass_cutoff$min_w[biomass_cutoff$Species == "WITCH FLOUNDER"], 
+  max_w = biomass_cutoff$max_w[biomass_cutoff$Species == "WITCH FLOUNDER"],
+  species = "WITCH FLOUNDER"
+)
+
+# Combine list of data frames into one
+df_sim_mean_dem <- do.call(rbind.data.frame, sim_mean)
+colnames(df_sim_mean_dem) <- paste0("Column_", 1:ncol(df_sim_mean_dem))  # Temporary column names
+
+# Convert to long format for analysis
+df_sim_mean_dem <- df_sim_mean_dem %>%
+  pivot_longer(cols = everything(), names_to = "year", values_to = "MeanWeight")
+
+# Assign actual years (1970–2010), recycling if needed
+df_sim_mean_dem$year <- rep(1970:2010, length.out = nrow(df_sim_mean_dem))
+
+# Summarise simulation results: median, min, and max across runs
+sim_dem1 <- df_sim_mean_dem %>%
+  mutate(Year = year, scen = "Scen1") %>%
+  group_by(Year, scen) %>%
+  summarise(
+    sim_mean = median(MeanWeight, na.rm = TRUE),
+    sim_lower = min(MeanWeight, na.rm = TRUE),
+    sim_upper = max(MeanWeight, na.rm = TRUE),
+    .groups = "drop"
+  ) %>%
+  filter(Year >= 1970 & Year <= 2010)
+
+# Prepare Scenario 1 simulation mean values for plotting
+sim_dem1_WITCH_FLOUNDER<- sim_dem1 %>%
+  select(Year, sim_mean) %>%
+  mutate(Species = "WITCH FLOUNDER")
+
+# Repeat the entire process for Scenario 2
+sims_scen2 <- readRDS("Ess_output/sims_scen2.RDS")
+
+sim_mean2 <- lapply(
+  sims_scen2,
+  getMeanWeight,
+  min_w = biomass_cutoff$min_w[biomass_cutoff$Species == "WITCH FLOUNDER"], 
+  max_w = biomass_cutoff$max_w[biomass_cutoff$Species == "WITCH FLOUNDER"],
+  species = "WITCH FLOUNDER"
+)
+
+df_sim_mean_dem2 <- do.call(rbind.data.frame, sim_mean2)
+colnames(df_sim_mean_dem2) <- paste0("Column_", 1:ncol(df_sim_mean_dem2))
+
+df_sim_mean_dem2 <- df_sim_mean_dem2 %>%
+  pivot_longer(cols = everything(), names_to = "year", values_to = "MeanWeight")
+
+df_sim_mean_dem2$year <- rep(1970:2010, length.out = nrow(df_sim_mean_dem2))
+
+sim_dem2 <- df_sim_mean_dem2 %>%
+  mutate(Year = year, scen = "Scen2") %>%
+  group_by(Year, scen) %>%
+  summarise(
+    sim_mean = median(MeanWeight, na.rm = TRUE),
+    sim_lower = min(MeanWeight, na.rm = TRUE),
+    sim_upper = max(MeanWeight, na.rm = TRUE),
+    .groups = "drop"
+  ) %>%
+  filter(Year >= 1970 & Year <= 2010)
+
+# Prepare Scenario 2 simulation mean values for plotting
+sim_dem2_WITCH_FLOUNDER<- sim_dem2 %>%
+  select(Year, sim_mean) %>%
+  mutate(Species = "WITCH FLOUNDER")
+
+# Load observed mean weight data for  WITCH FLOUNDER
+MW <- data.frame(
+  Year = 1970:2010, 
+  MeanWeight = Mean_weight$`WITCH FLOUNDER`
+)
+
+# Merge observed data with Scenario 1 simulation output
+sim_dem1 <- left_join(sim_dem1, MW, by = "Year")
+
+# Merge observed data with Scenario 2 simulation output
+sim_dem2 <- left_join(sim_dem2, MW, by = "Year")
+
+# Label pre-1986 years as "Calibration" in Scenario 1 data
+time_seriess <- sim_dem1 %>%
+  mutate(scen = ifelse(Year < 1986, "Calibration", scen))
+
+# Tag Scenario 1 simulation data with species name
+time1_WITCH_FLOUNDER<- time_seriess %>%
+  mutate(Species = "WITCH FLOUNDER", .before = scen)
+
+# Label pre-1986 years as "Calibration" in Scenario 2 data
+time_seriess <- sim_dem2 %>%
+  mutate(scen = ifelse(Year < 1986, "Calibration", scen))
+
+# Tag Scenario 2 simulation data with species name
+time2_WITCH_FLOUNDER<- time_seriess %>%
+  mutate(Species = "WITCH FLOUNDER", .before = scen)
+
+```
+
+MeanWeight plot YELLOW FLOUNDER
+```{r}
+# Load simulation outputs for Scenario 1
+sims_scen1 <- readRDS("Ess_output/sims_scen1.RDS")
+
+# Apply getMeanWeight() to each simulation run for  YELLOWTAIL FLOUNDER
+sim_mean <- lapply(
+  sims_scen1,
+  getMeanWeight,
+  min_w = biomass_cutoff$min_w[biomass_cutoff$Species == "YELLOWTAIL FLOUNDER"], 
+  max_w = biomass_cutoff$max_w[biomass_cutoff$Species == "YELLOWTAIL FLOUNDER"],
+  species = "YELLOWTAIL FLOUNDER"
+)
+
+# Combine list of data frames into one
+df_sim_mean_dem <- do.call(rbind.data.frame, sim_mean)
+colnames(df_sim_mean_dem) <- paste0("Column_", 1:ncol(df_sim_mean_dem))  # Temporary column names
+
+# Convert to long format for analysis
+df_sim_mean_dem <- df_sim_mean_dem %>%
+  pivot_longer(cols = everything(), names_to = "year", values_to = "MeanWeight")
+
+# Assign actual years (1970–2010), recycling if needed
+df_sim_mean_dem$year <- rep(1970:2010, length.out = nrow(df_sim_mean_dem))
+
+# Summarise simulation results: median, min, and max across runs
+sim_dem1 <- df_sim_mean_dem %>%
+  mutate(Year = year, scen = "Scen1") %>%
+  group_by(Year, scen) %>%
+  summarise(
+    sim_mean = median(MeanWeight, na.rm = TRUE),
+    sim_lower = min(MeanWeight, na.rm = TRUE),
+    sim_upper = max(MeanWeight, na.rm = TRUE),
+    .groups = "drop"
+  ) %>%
+  filter(Year >= 1970 & Year <= 2010)
+
+# Prepare Scenario 1 simulation mean values for plotting
+sim_dem1_YELLOWTAIL_FLOUNDER<- sim_dem1 %>%
+  select(Year, sim_mean) %>%
+  mutate(Species = "YELLOWTAIL FLOUNDER")
+
+# Repeat the entire process for Scenario 2
+sims_scen2 <- readRDS("Ess_output/sims_scen2.RDS")
+
+sim_mean2 <- lapply(
+  sims_scen2,
+  getMeanWeight,
+  min_w = biomass_cutoff$min_w[biomass_cutoff$Species == "YELLOWTAIL FLOUNDER"], 
+  max_w = biomass_cutoff$max_w[biomass_cutoff$Species == "YELLOWTAIL FLOUNDER"],
+  species = "YELLOWTAIL FLOUNDER"
+)
+
+df_sim_mean_dem2 <- do.call(rbind.data.frame, sim_mean2)
+colnames(df_sim_mean_dem2) <- paste0("Column_", 1:ncol(df_sim_mean_dem2))
+
+df_sim_mean_dem2 <- df_sim_mean_dem2 %>%
+  pivot_longer(cols = everything(), names_to = "year", values_to = "MeanWeight")
+
+df_sim_mean_dem2$year <- rep(1970:2010, length.out = nrow(df_sim_mean_dem2))
+
+sim_dem2 <- df_sim_mean_dem2 %>%
+  mutate(Year = year, scen = "Scen2") %>%
+  group_by(Year, scen) %>%
+  summarise(
+    sim_mean = median(MeanWeight, na.rm = TRUE),
+    sim_lower = min(MeanWeight, na.rm = TRUE),
+    sim_upper = max(MeanWeight, na.rm = TRUE),
+    .groups = "drop"
+  ) %>%
+  filter(Year >= 1970 & Year <= 2010)
+
+# Prepare Scenario 2 simulation mean values for plotting
+sim_dem2_YELLOWTAIL_FLOUNDER<- sim_dem2 %>%
+  select(Year, sim_mean) %>%
+  mutate(Species = "YELLOWTAIL FLOUNDER")
+
+# Load observed mean weight data for  YELLOWTAIL FLOUNDER
+MW <- data.frame(
+  Year = 1970:2010, 
+  MeanWeight = Mean_weight$`YELLOWTAIL FLOUNDER`
+)
+
+# Merge observed data with Scenario 1 simulation output
+sim_dem1 <- left_join(sim_dem1, MW, by = "Year")
+
+# Merge observed data with Scenario 2 simulation output
+sim_dem2 <- left_join(sim_dem2, MW, by = "Year")
+
+# Label pre-1986 years as "Calibration" in Scenario 1 data
+time_seriess <- sim_dem1 %>%
+  mutate(scen = ifelse(Year < 1986, "Calibration", scen))
+
+# Tag Scenario 1 simulation data with species name
+time1_YELLOWTAIL_FLOUNDER<- time_seriess %>%
+  mutate(Species = "YELLOWTAIL FLOUNDER", .before = scen)
+
+# Label pre-1986 years as "Calibration" in Scenario 2 data
+time_seriess <- sim_dem2 %>%
+  mutate(scen = ifelse(Year < 1986, "Calibration", scen))
+
+# Tag Scenario 2 simulation data with species name
+time2_YELLOWTAIL_FLOUNDER<- time_seriess %>%
+  mutate(Species = "YELLOWTAIL FLOUNDER", .before = scen)
+```
+
+Merge data
+```{r}
+# Combine mean weight time series for Scenario 1 across all 13 species
+time_series_mw1 <- rbind(time1_AMERICAN_PLAICE, time1_COD, time1_HERRING ,time1_ATLANTIC_HALIBUT,  time1_REDFISH, time1_GREENLAND ,time1_HADDOCK ,time1_SANDLANCES, time1_SILVER_HAKE , time1_SPINY_DOGFISH, time1_WHITE_HAKE, time1_WITCH_FLOUNDER, time1_YELLOWTAIL_FLOUNDER)
+# Combine mean weight time series for Scenario 2 across all 13 species
+time_series_mw2 <- rbind(time2_AMERICAN_PLAICE, time2_COD, time2_HERRING ,time2_ATLANTIC_HALIBUT,  time2_REDFISH, time2_GREENLAND ,time2_HADDOCK, time2_SANDLANCES,time2_SILVER_HAKE , time2_SPINY_DOGFISH, time2_WHITE_HAKE, time2_WITCH_FLOUNDER, time2_YELLOWTAIL_FLOUNDER)
+# Merge Scenario 1 and Scenario 2 datasets into a single dataframe
+time_series_mw <- rbind(time_series_mw1, time_series_mw2)
+```
+
+
+ Comparison of Model Skill Metrics across Model Scenarios
+```{r}
+# Load necessary library
+library(openair)
+
+# Calculate log-transformed observed and simulated mean weights for better statistical comparison
+time_series_mw <- time_series_mw %>%
+  mutate(
+    logMeanWeight = log(MeanWeight),          # Natural log of observed mean weight
+    logSimMeanWeight = log(sim_mean)          # Natural log of simulated mean weight
+  )
+
+# Compute model performance statistics grouped by scenario ("scen")
+modStats_mw <- time_series_mw %>%
+  group_modify(~modStats(
+    .x, 
+    obs = "logMeanWeight",                    # Column for observed values (log-transformed)
+    mod = "logSimMeanWeight",                 # Column for modelled/simulated values (log-transformed)
+    type = "scen",                            # Grouping by scenario
+    rank = "scen",                            # Rank by scenario
+    statistic = c("n","FAC2","MGE","RMSE","r","COE"),  # Selected performance metrics
+    method = "spearman"                       # Use Spearman correlation for "r"
+  )) %>%
+  ungroup()
+
+# Load flextable for nice formatting of summary table
+library(flextable)
+
+# Format the model stats results table
+tabl_mw <- modStats_mw %>%
+  mutate(across(where(is.numeric), ~round(., 3))) %>%  # Round numeric columns to 3 decimal places
+  select(c("scen","n","FAC2","MGE","RMSE","r","COE")) %>%  # Select relevant columns for display
+  flextable()  # Convert to flextable for styled tabular output
+
+# Display the formatted table
+tabl_mw
+
+```
+
+indicator_plot Display
+```{r}
+# Trim extra whitespace from species names to ensure consistency
+time_series_mw$Species <- trimws(time_series_mw$Species)
+
+# Set factor levels for Species to ensure consistent ordering across plots
+species <- levels(time_series_mw$Species) <- c(
+  "AMERICAN PLAICE", "ATLANTIC COD", "ATLANTIC HALIBUT", "HERRING",
+  "REDFISH UNSEPARATED", "GREENLAND HALIBUT", "HADDOCK", "SANDLANCES",
+  "SILVER HAKE", "SPINY DOGFISH", "WHITE HAKE", "WITCH FLOUNDER", "YELLOWTAIL FLOUNDER"
+)
+
+# Generate a multi-panel plot of mean body weight time series for each species
+MeanWeight_plots = ggplot(time_series_mw, aes(x = Year, y = MeanWeight, colour = scen, fill = scen)) +
+
+  # Facet by species with fixed order and free y-axis scales
+  facet_wrap(~factor(Species, levels = species), scales = "free") +
+
+  # Add observed data points as small black dots
+  geom_point(aes(y = MeanWeight), colour = "black", size = 0.5) +
+
+  # Add simulation uncertainty as shaded ribbon (min to max range)
+  geom_ribbon(data = time_series_mw, aes(ymin = sim_lower, ymax = sim_upper), 
+              alpha = 0.3, colour = NA) +
+
+  # Add simulation mean lines for each scenario
+  geom_line(data = time_series_mw, aes(y = sim_mean, colour = scen)) +
+
+  # Define custom colors for scenarios (no legend title)
+  scale_colour_manual(
+    name = NULL,
+    values = c("grey70", "#4575B4", "#D73027"),
+    labels = c("Calibration", "Fishing mortality only", "Fishing with additional mortality")
+  ) +
+  scale_fill_manual(
+    name = NULL,
+    values = c("grey70", "#4575B4", "#D73027"),
+    labels = c("Calibration", "Fishing mortality only", "Fishing with additional mortality")
+  ) +
+
+  # Label the y-axis
+  labs(y = "Mean Body Size (weight, g)") +
+
+  # Add a vertical dashed line at 1986 to indicate scenario transition
+  geom_vline(xintercept = 1986, linetype = "dashed", color = "black") +
+
+  # Apply a clean publication-style theme
+  theme_pubr() +
+
+  # Additional theme customization: legend, axis labels, facet headers
+  theme(
+    legend.position = "bottom",
+    axis.title.x = element_blank(),
+    strip.text = element_text(face = "bold"),       # Bold facet labels
+    axis.title.y = element_text(face = "bold")      # Bold y-axis title
+  )
+
+# Display the plot in the R graphics window
+MeanWeight_plots
+
+# Save the plot to file (JPEG format) with high resolution
+ggsave(
+  filename = paste0(save_dir, "MeanWeight_plots.jpeg"),  # Note: removed space in filename
+  plot = MeanWeight_plots,
+  width = 11, height = 7.5, units = "in", dpi = 400
+)
+# Trim extra whitespace from species names to ensure consistency
+time_series_mw$Species <- trimws(time_series_mw$Species)
+
+# Set factor levels for Species to ensure consistent ordering across plots
+species <- levels(time_series_mw$Species) <- c(
+  "AMERICAN PLAICE", "ATLANTIC COD", "ATLANTIC HALIBUT", "HERRING",
+  "REDFISH UNSEPARATED", "GREENLAND HALIBUT", "HADDOCK", "SANDLANCES",
+  "SILVER HAKE", "SPINY DOGFISH", "WHITE HAKE", "WITCH FLOUNDER", "YELLOWTAIL FLOUNDER"
+)
+
+# Generate a multi-panel plot of mean body weight time series for each species
+MeanWeight_plots = ggplot(time_series_mw, aes(x = Year, y = MeanWeight, colour = scen, fill = scen)) +
+
+  # Facet by species with fixed order and free y-axis scales
+  facet_wrap(~factor(Species, levels = species), scales = "free") +
+
+  # Add observed data points as small black dots
+  geom_point(aes(y = MeanWeight), colour = "black", size = 0.5) +
+
+  # Add simulation uncertainty as shaded ribbon (min to max range)
+  geom_ribbon(data = time_series_mw, aes(ymin = sim_lower, ymax = sim_upper), 
+              alpha = 0.3, colour = NA) +
+
+  # Add simulation mean lines for each scenario
+  geom_line(data = time_series_mw, aes(y = sim_mean, colour = scen)) +
+
+  # Define custom colors for scenarios (no legend title)
+  scale_colour_manual(
+    name = NULL,
+    values = c("grey70", "#4575B4", "#D73027"),
+    labels = c("Calibration", "Fishing mortality only", "Fishing with additional mortality")
+  ) +
+  scale_fill_manual(
+    name = NULL,
+    values = c("grey70", "#4575B4", "#D73027"),
+    labels = c("Calibration", "Fishing mortality only", "Fishing with additional mortality")
+  ) +
+
+  # Label the y-axis
+  labs(y = "Mean Body Size (weight, g)") +
+
+  # Add a vertical dashed line at 1986 to indicate scenario transition
+  geom_vline(xintercept = 1986, linetype = "dashed", color = "black") +
+
+  # Apply a clean publication-style theme
+  theme_pubr() +
+
+  # Additional theme customization: legend, axis labels, facet headers
+  theme(
+    legend.position = "bottom",
+    axis.title.x = element_blank(),
+    strip.text = element_text(face = "bold"),       # Bold facet labels
+    axis.title.y = element_text(face = "bold")      # Bold y-axis title
+  )
+
+# Display the plot in the R graphics window
+MeanWeight_plots
+
+# Save the plot to file (JPEG format) with high resolution
+ggsave(
+  filename = paste0(save_dir, "MeanWeight_plots.jpeg"),  # Note: removed space in filename
+  plot = MeanWeight_plots,
+  width = 11, height = 7.5, units = "in", dpi = 400
+)
+```
+
+Calculate spearman correlation across all simulations
+
+```{r}
+library(dplyr)
+library(tidyr)
+library(ggplot2)
+library(progress)
+mw_sim1 <- time_series_mw1 %>%
+  select(Year, Species, sim_mean, MeanWeight) %>%
+  rename(
+    MeanWeight = sim_mean,
+    MeanWeight_Obs = MeanWeight
+  )
+
+
+mw_sim2 <- time_series_mw2 %>%
+  select(Year, Species, sim_mean, MeanWeight) %>%
+  rename(
+    MeanWeight = sim_mean,
+    MeanWeight_Obs = MeanWeight
+  )
+
+# Prepare species name map
+species_name_map <- c(
+  "AMERICAN PLAICE" = "AMERICAN PLAICE",
+  "COD(ATLANTIC)" = "ATLANTIC COD",
+  "HERRING(ATLANTIC)" = "HERRING",
+  "ATLANTIC HALIBUT" = "ATLANTIC HALIBUT",
+  "REDFISH UNSEPARATED" = "REDFISH UNSEPARATED",
+  "TURBOT, GREENLAND HALIBUT" = "GREENLAND HALIBUT",
+  "HADDOCK" = "HADDOCK",
+  "SANDLANCES" = "SANDLANCES",
+  "SILVER HAKE" = "SILVER HAKE",
+  "SPINY DOGFISH" = "SPINY DOGFISH",
+  "WHITE HAKE" = "WHITE HAKE",
+  "WITCH FLOUNDER" = "WITCH FLOUNDER",
+  "YELLOWTAIL FLOUNDER" = "YELLOWTAIL FLOUNDER"
+)
+# Initialize result dataframes
+cor_scen1 <- expand.grid(sim = 1:1000, cor_bio = NA, cor_catch = NA, cor_mean = NA)
+cor_scen2 <- expand.grid(sim = 1:1000, cor_bio = NA, cor_catch = NA, cor_mean = NA)
+
+pb <- progress::progress_bar$new(total = 1000)
+
+for (i in 1:1000) {
+  pb$tick()
+
+  # === SCENARIO 1 ===
+  bio <- plotBiomass(sims_scen1[[i]], return_data = TRUE)
+  yield <- sims_scen1[[i]] |> plotYieldGear(return_data = TRUE) |> 
+    filter(Gear != "Seals", Species != "SANDLANCES")
+  yield <- yield_ts %>% left_join(yield, by = c("Year", "Species"))
+
+  sim_model <- sims_scen1[[i]]
+  mean_weights_by_species <- lapply(unique(species_params(params)$species), function(sp) {
+    mean_w <- getMeanWeight(sim_model, species = sp,
+                            min_w = species_params(params)$biomass_cutoff[species_params(params)$species == sp],
+                            return_data = TRUE)
+    data.frame(Year = as.numeric(names(mean_w)), Species = sp, MeanWeight = as.numeric(mean_w))
+  })
+
+  mw_sim1 <- bind_rows(mean_weights_by_species) %>%
+    mutate(Species = species_name_map[Species]) %>%
+    left_join(time_series_mw1 %>% select(Year, Species, MeanWeight) %>%
+                rename(MeanWeight_Obs = MeanWeight), by = c("Year", "Species")) %>%
+    filter(!is.na(MeanWeight), !is.na(MeanWeight_Obs),
+           is.finite(MeanWeight), is.finite(MeanWeight_Obs))
+
+  cor_scen1$cor_bio[i]   <- cor(bio$Biomass, biomass_ts$Biomass, method = "spearman")
+  cor_scen1$cor_catch[i] <- cor(yield$Yield_Obs, yield$Yield, method = "spearman", use = "pairwise.complete.obs")
+  cor_scen1$cor_mean[i]  <- if (nrow(mw_sim1) > 0) cor(mw_sim1$MeanWeight, mw_sim1$MeanWeight_Obs, method = "spearman") else NA
+
+
+  # === SCENARIO 2 ===
+  bio <- plotBiomass(sims_scen2[[i]], return_data = TRUE)
+  yield <- sims_scen2[[i]] |> plotYieldGear(return_data = TRUE) |> 
+    filter(Gear != "Seals", Species != "SANDLANCES")
+  yield <- yield_ts %>% left_join(yield, by = c("Year", "Species"))
+
+  sim_model <- sims_scen2[[i]]
+  mean_weights_by_species <- lapply(unique(species_params(params)$species), function(sp) {
+    mean_w <- getMeanWeight(sim_model, species = sp,
+                            min_w = species_params(params)$biomass_cutoff[species_params(params)$species == sp],
+                            return_data = TRUE)
+    data.frame(Year = as.numeric(names(mean_w)), Species = sp, MeanWeight = as.numeric(mean_w))
+  })
+
+  mw_sim2 <- bind_rows(mean_weights_by_species) %>%
+    mutate(Species = species_name_map[Species]) %>%
+    left_join(time_series_mw2 %>% select(Year, Species, MeanWeight) %>%
+                rename(MeanWeight_Obs = MeanWeight), by = c("Year", "Species")) %>%
+    filter(!is.na(MeanWeight), !is.na(MeanWeight_Obs),
+           is.finite(MeanWeight), is.finite(MeanWeight_Obs))
+
+  cor_scen2$cor_bio[i]   <- cor(bio$Biomass, biomass_ts$Biomass, method = "spearman")
+  cor_scen2$cor_catch[i] <- cor(yield$Yield_Obs, yield$Yield, method = "spearman", use = "pairwise.complete.obs")
+  cor_scen2$cor_mean[i]  <- if (nrow(mw_sim2) > 0) cor(mw_sim2$MeanWeight, mw_sim2$MeanWeight_Obs, method = "spearman") else NA
+}
+
+# Add labels and merge results
+cor_scen1$scen <- "Fishing mortality only"
+cor_scen2$scen <- "Fishing with additional mortality"
+
+cor_results <- bind_rows(cor_scen1, cor_scen2) %>% 
+  rename(Biomass = cor_bio, Catch = cor_catch, Mean_weight = cor_mean) %>%
+  mutate(cor_mean_overall = rowMeans(select(., Biomass, Catch), na.rm = TRUE))
+
+cor_results_long <- cor_results |> 
+  pivot_longer(cols = c("Biomass", "Catch", "Mean_weight"), names_to = "Variable") |>
+  mutate(Variable = ifelse(Variable == "Mean_weight", "Mean body size", Variable))
+
+# Create violin plot
+cor_plot <- ggplot(cor_results_long, aes(x = Variable, y = value, fill = scen)) + 
+  geom_violin(trim = FALSE, scale = "width") + 
+  theme_bw() + 
+  labs(x = NULL, y = "Spearman Correlation") + 
+  scale_fill_manual(values = c("Fishing mortality only" = "blue", 
+                               "Fishing with additional mortality" = "red")) +
+  theme(
+    axis.text.x = element_text(angle = 0, hjust = 0.5, size = 12, face = "bold"),
+    axis.text.y = element_text(size = 11, face = "bold"),
+    axis.title.y = element_text(size = 11, face = "bold"),
+    legend.title = element_blank(),
+    legend.text = element_text(size = 10),
+    legend.position = "right",
+    panel.grid.major = element_blank()
+  )
+
+cor_plot
+ggsave(filename = paste0(save_dir, "cor_plot.jpeg"), plot = cor_plot,width = 11, height = 7.5, units = "in",dpi = 400)
+```
+
+```{r}
+
+```
+
