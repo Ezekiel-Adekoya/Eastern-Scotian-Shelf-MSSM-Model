@@ -1,6 +1,6 @@
 ---
-title: "Running forcing through time by Scenario"
-author: "Ezekiel Adekoya"
+title: "Running forcing through time"
+author: "Ezekiel"
 date: "2025-02-05"
 output: html_document
 ---
@@ -96,7 +96,7 @@ Read in params object
 ```{r}
 # Read in params object
 # Read in params object
-params_with_seal <- readRDS("Ess_data/params_with_seal_interaction.RDS")
+params <- readRDS("Ess_data/params_with_seal_interaction.RDS")
 # Read in effort object
 effort_with_seal <- readRDS("Ess_data/effort_with_seal_matrix.RDS")
 effort<-effort_with_seal
@@ -104,7 +104,7 @@ effort<-effort_with_seal
 effort[,"Seals"]<-0
 #fix zero effort values for American Plaice
 effort["2004","AMERICAN PLAICE"]<-sum(effort[c("2003","2005"),"AMERICAN PLAICE"])/2
-params = params_with_seal
+
 #Orignal run
 sim0 <- project(params,effort = effort)
 plotlyBiomass(sim0)
@@ -244,6 +244,8 @@ trimYield<-function(sim){
 }
 
 #trimYield(sims_scen1[[1]])
+
+
 
 sim_catches<-lapply(sims_scen1,trimYield)
 sim_catches2<-lapply(sims_scen2,trimYield)
@@ -415,6 +417,7 @@ tabl_c<-modStats_c %>%
 #        width = 11, height = 7.5, units = "in",dpi = 400)
 ```
 
+
 # compare size-based trophic cascades under each scenario relative to histrorical when cod were abundant
 ```{r}
 spectra_reference<-plotSpectra(sims_scen1[[1]],return_data = T,time_range = 1970:1985)
@@ -434,11 +437,11 @@ sf2 <- mutate(left_join(spectra_reference, spectra_scen2, by = c("w", "Legend"))
 
 
 # combine
-sf1$scenario <- "Fishing mortality alone"
-sf2$scenario <- "Fishing with additional mortality"
+sf1$scenario <- "Without additional mortality"
+sf2$scenario <- "With additional mortality"
 combined_data <- rbind(sf1, sf2)
 
-linecolours<-c("#4575B4","#D73027")
+linecolours<-c("#D73027","#4575B4")
 combined_data <- combined_data %>%
   mutate(Legend = case_when(
     Legend == "TURBOT, GREENLAND HALIBUT" ~ "GREENLAND HALIBUT",
@@ -478,6 +481,8 @@ ggsave(filename = paste0(save_dir, "trophic_cascades_plot.jpeg"), plot = trophic
 trophic_cascades_plot
 ```
 
+
+
 # Size distribution of seal "diets"
 ```{r}
 
@@ -485,6 +490,8 @@ aaa =plotYieldVsSize(sims_scen2[[1]],gear=c("Seals"), x_var = c("Length")) + the
 ggsave(filename = paste0(save_dir, "aaa.jpeg"), plot = aaa,
        width = 11, height = 7.5, units = "in",dpi = 400)
 ```
+
+
 
 # # Calculate spearman correlation across all simulations
 ```{r}
@@ -621,7 +628,7 @@ cor_results <- ggplot(cor_results_long, aes(x = Variable, y = value, fill = scen
   )
 # Correlation between scenarios
 cor_results
-cor_results
+
 ggsave(filename = paste0(save_dir, "cor_results.jpeg"), plot = cor_results,
        width = 11, height = 7.5, units = "in",dpi = 400)
 ```

@@ -39,6 +39,8 @@ save_dir <- paste0(here(), "/Ess_Output/")
 Read in Species Parameters
 ```{r}
 external_species_info <- read.csv("Ess_data/ESS_species_params.csv")
+external_species_info$temp_min  <- c(0.6, 0.5, 0.4, 0.5, 0.4, 0.5, 1.4, 0.5, 0.9, 4.2, 1.2, 0.6, 0.4)
+external_species_info$temp_max <- c(10.3, 10.3, 7.9, 11.2, 6.6, 4.2, 12.1, 8.9,7.8, 18.7, 7.8, 11.4, 9.7)
 names(external_species_info)[1] <- "species"
 years_to_use<-as.character(1970:1985)
 ```

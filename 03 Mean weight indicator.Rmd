@@ -158,7 +158,6 @@ Mean_weight <- inner_join(biop, m, by = "YEAR", suffix = c("_bio", "_m")) %>%
 ```
 
 
-
 MeanWeight plot AMERICAN PLAICE
 ```{r}
 # Load simulation outputs for Scenario 1
