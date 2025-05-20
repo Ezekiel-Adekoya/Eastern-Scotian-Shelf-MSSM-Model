@@ -104,7 +104,7 @@ effort<-effort_with_seal
 effort[,"Seals"]<-0
 #fix zero effort values for American Plaice
 effort["2004","AMERICAN PLAICE"]<-sum(effort[c("2003","2005"),"AMERICAN PLAICE"])/2
-params = params_with_seal
+#params = params_with_seal
 #Orignal run
 sim0 <- project(params,effort = effort)
 plotlyBiomass(sim0)
