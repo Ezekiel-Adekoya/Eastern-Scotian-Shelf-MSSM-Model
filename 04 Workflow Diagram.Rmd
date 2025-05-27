@@ -228,7 +228,7 @@ p <- grViz("digraph workflow {
     <tr><td bgcolor='lightgray'><b>Step 3: Calibrate Steady State Baseline Model</b></td></tr>
     <tr><td bgcolor='white'>
       • Calibration of model steady state to time-averaged reference period<br/>
-      • Match biomasses, yields, Sensitivity to fishing <br/>
+      • Match biomasses, yields, sensitivity to fishing <br/>
     </td></tr>
    </table>>, width = 10, height=0.3]
   
@@ -345,7 +345,7 @@ p <- grViz("digraph workflow {
     <tr><td bgcolor='lightgray'><b>Step 3: Calibrate Steady State Baseline Model</b></td></tr>
     <tr><td bgcolor='white'>
       • Calibration of model steady state to time-averaged reference period<br/>
-      • Match biomasses, yields, Sensitivity to fishing <br/>
+      • Match biomasses, yields, sensitivity to fishing <br/>
     </td></tr>
   </table>>, width = 10, height=0.3, pos = '0,0!']
   
@@ -365,7 +365,7 @@ p <- grViz("digraph workflow {
     <tr><td bgcolor='lightgray'><b>Step 5: Dynamical Top-Down Forcing Scenarios</b></td></tr>
     <tr><td bgcolor='white'>
       • Scenario 1: Fishing mortality time series (1970-2010)<br/>
-      • Scenario 2: Additional hypothesized seal mortality (1986-2010)
+      • Scenario 2: Additional hypothesized natural mortality (1986-2010)
     </td></tr>
   </table>>, pos = '0,-4!']
   
@@ -434,11 +434,6 @@ p %>%
     export_svg %>% charToRaw %>% rsvg_pdf("workflow.jpeg")
 ```
   
-If we prefer, we can change the format from `svg` to `png`.  
-  
-```{r, eval = FALSE}
-rsvg_png("model_workflow.svg", 
-         "model_workflow.png")
-```
+
   
   

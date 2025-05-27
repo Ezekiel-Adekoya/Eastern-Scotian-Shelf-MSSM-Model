@@ -104,7 +104,7 @@ effort<-effort_with_seal
 effort[,"Seals"]<-0
 #fix zero effort values for American Plaice
 effort["2004","AMERICAN PLAICE"]<-sum(effort[c("2003","2005"),"AMERICAN PLAICE"])/2
-#params = params_with_seal
+params = params_with_seal
 #Orignal run
 sim0 <- project(params,effort = effort)
 plotlyBiomass(sim0)
@@ -199,6 +199,7 @@ maxw<-species_params(params)$w_max
 species<-data.frame(species,maxw)
 species<-species[order(species$maxw),"species"]
 ```
+
 
 reorder Species in the plot to go from from small to large max body size.
 ```{r}
@@ -600,7 +601,7 @@ cor_results <- cor_results %>%
   rename(Biomass = cor_bio, Catch = cor_catch, Mean_weight = cor_mean)
 
 cor_results_long <- cor_results |> 
-  pivot_longer(cols = c("Biomass", "Catch", "Mean_weight"), names_to = "Variable") |>
+  pivot_longer(cols = c("Biomass", "Catch", "Individual Mean_weight"), names_to = "Variable") |>
   # Add this line to rename the variable
   mutate(Variable = ifelse(Variable == "Mean_weight", "Mean body size", Variable))
 
@@ -626,7 +627,3 @@ ggsave(filename = paste0(save_dir, "cor_results.jpeg"), plot = cor_results,
        width = 11, height = 7.5, units = "in",dpi = 400)
 ```
 
-
-```{r}
-
-```
