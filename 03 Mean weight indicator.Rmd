@@ -23,9 +23,9 @@ library(mizerHowTo)
 library(pbapply)
 library(openair)
 library(patchwork)
+
 dir <- setwd(here())
-knitr::opts_knit$set(root.dir = "~/Mac/Dropbox/Desktop/Ezekiel/Eastern Scotian Shelf Model/Eastern-Scotian-Shelf-Model/")
-knitr::opts_knit$set(root.dir = dir)
+knitr::opts_knit$set(root.dir = "~/Mac/Dropbox/Desktop/Eastern Scotian Shelf Model/")
 
 # Define the save directory
 save_dir <- paste0(here(), "/Ess_Output/")
@@ -154,7 +154,7 @@ Mean_weight <- inner_join(biop, m, by = "YEAR", suffix = c("_bio", "_m")) %>%
                 .names = "{sub('_bio', '', .col)}")) %>%
   select(YEAR, all_of(names(biop)[-1]))
  Mean_weight_by_species <- Mean_weight
-# write.csv(Mean_weight_by_species, file = "Ess_data/Mean_weight_by_species.csv", row.names = FALSE)
+write.csv(Mean_weight_by_species, file = "Ess_data/Mean_weight_by_species.csv", row.names = FALSE)
 ```
 
 
@@ -839,16 +839,14 @@ MeanWeight plot SANDLANCES
 ```{r}
 # Load simulation outputs for Scenario 1
 sims_scen1 <- readRDS("Ess_output/sims_scen1.RDS")
-
 # Apply getMeanWeight() to each simulation run for  SANDLANCES
 sim_mean <- lapply(
   sims_scen1,
   getMeanWeight,
   min_w = biomass_cutoff$min_w[biomass_cutoff$Species == "SANDLANCES"], 
   max_w = biomass_cutoff$max_w[biomass_cutoff$Species == "SANDLANCES"],
-  species = " SANDLANCES"
+  species = "SANDLANCES"
 )
-
 # Combine list of data frames into one
 df_sim_mean_dem <- do.call(rbind.data.frame, sim_mean)
 colnames(df_sim_mean_dem) <- paste0("Column_", 1:ncol(df_sim_mean_dem))  # Temporary column names
@@ -1489,7 +1487,78 @@ time_series_mw <- rbind(time_series_mw1, time_series_mw2)
 ```
 
 
- Comparison of Model Skill Metrics across Model Scenarios
+ 
+
+indicator_plot Display
+```{r}
+# Trim extra whitespace from species names to ensure consistency
+time_series_mw$Species <- trimws(time_series_mw$Species)
+
+# Set factor levels for Species to ensure consistent ordering across plots
+species <- levels(time_series_mw$Species) <- c(
+  "AMERICAN PLAICE", "ATLANTIC COD", "ATLANTIC HALIBUT", "HERRING",
+  "REDFISH UNSEPARATED", "GREENLAND HALIBUT", "HADDOCK", "SANDLANCES",
+  "SILVER HAKE", "SPINY DOGFISH", "WHITE HAKE", "WITCH FLOUNDER", "YELLOWTAIL FLOUNDER"
+)
+
+# Generate a multi-panel plot of mean body weight time series for each species
+MeanWeight_plots = ggplot(time_series_mw, aes(x = Year, y = MeanWeight, colour = scen, fill = scen)) +
+  
+  # Facet by species with fixed order and free y-axis scales
+  facet_wrap(~factor(Species, levels = species), scales = "free") +
+
+  # Add observed data points as small black dots
+  geom_point(aes(y = MeanWeight), colour = "black", size = 0.5) +
+
+  # Add simulation uncertainty as shaded ribbon (min to max range)
+  geom_ribbon(aes(ymin = sim_lower, ymax = sim_upper), alpha = 0.3, colour = NA) +
+
+  # Add simulation mean lines for each scenario
+  geom_line(aes(y = sim_mean, colour = scen)) +
+
+  # Define custom colors for scenarios (no legend title)
+  scale_colour_manual(
+    name = NULL,
+    values = c("grey70", "#4575B4", "#D73027"),
+    labels = c("Calibration", 
+               "Fishing mortality without natural", 
+               "Fishing with natural additional mortality")) +
+  scale_fill_manual(
+    name = NULL,
+    values = c("grey70", "#4575B4", "#D73027"),
+    labels = c("Calibration", 
+               "Fishing mortality without natural", 
+               "Fishing with natural additional mortality")) +
+
+  # Label axes
+  labs(y = "Individual Mean Body Size (weight, g)", x = "Year") +
+
+  # Add vertical reference line
+  geom_vline(xintercept = 1986, linetype = "dashed", color = "black") +
+
+  # Apply clean theme and style customizations
+  theme_pubr() +
+  theme(
+    legend.position = "bottom",
+    legend.text = element_text(face = "bold"),
+    axis.title.x = element_text(face = "bold"),
+    axis.title.y = element_text(face = "bold"),
+    strip.text = element_text(face = "bold")
+  ) +
+  guides(colour = guide_legend(title = NULL), fill = guide_legend(title = NULL))
+
+# Display the plot
+MeanWeight_plots
+
+# Save the plot to file (JPEG format) with high resolution
+ggsave(
+  filename = paste0(save_dir, "MeanWeight_plots.jpeg"),  # Note: removed space in filename
+  plot = MeanWeight_plots,
+  width = 11, height = 7.5, units = "in", dpi = 400
+)
+```
+
+Comparison of Model Skill Metrics across Model Scenarios
 ```{r}
 # Load necessary library
 library(openair)
@@ -1527,139 +1596,6 @@ tabl_mw <- modStats_mw %>%
 tabl_mw
 
 ```
-
-indicator_plot Display
-```{r}
-# Trim extra whitespace from species names to ensure consistency
-time_series_mw$Species <- trimws(time_series_mw$Species)
-
-# Set factor levels for Species to ensure consistent ordering across plots
-species <- levels(time_series_mw$Species) <- c(
-  "AMERICAN PLAICE", "ATLANTIC COD", "ATLANTIC HALIBUT", "HERRING",
-  "REDFISH UNSEPARATED", "GREENLAND HALIBUT", "HADDOCK", "SANDLANCES",
-  "SILVER HAKE", "SPINY DOGFISH", "WHITE HAKE", "WITCH FLOUNDER", "YELLOWTAIL FLOUNDER"
-)
-
-# Generate a multi-panel plot of mean body weight time series for each species
-MeanWeight_plots = ggplot(time_series_mw, aes(x = Year, y = MeanWeight, colour = scen, fill = scen)) +
-
-  # Facet by species with fixed order and free y-axis scales
-  facet_wrap(~factor(Species, levels = species), scales = "free") +
-
-  # Add observed data points as small black dots
-  geom_point(aes(y = MeanWeight), colour = "black", size = 0.5) +
-
-  # Add simulation uncertainty as shaded ribbon (min to max range)
-  geom_ribbon(data = time_series_mw, aes(ymin = sim_lower, ymax = sim_upper), 
-              alpha = 0.3, colour = NA) +
-
-  # Add simulation mean lines for each scenario
-  geom_line(data = time_series_mw, aes(y = sim_mean, colour = scen)) +
-
-  # Define custom colors for scenarios (no legend title)
-  scale_colour_manual(
-    name = NULL,
-    values = c("grey70", "#4575B4", "#D73027"),
-    labels = c("Calibration", "Fishing mortality only", "Fishing with additional mortality")
-  ) +
-  scale_fill_manual(
-    name = NULL,
-    values = c("grey70", "#4575B4", "#D73027"),
-    labels = c("Calibration", "Fishing mortality only", "Fishing with additional mortality")
-  ) +
-
-  # Label the y-axis
-  labs(y = "Mean Body Size (weight, g)") +
-
-  # Add a vertical dashed line at 1986 to indicate scenario transition
-  geom_vline(xintercept = 1986, linetype = "dashed", color = "black") +
-
-  # Apply a clean publication-style theme
-  theme_pubr() +
-
-  # Additional theme customization: legend, axis labels, facet headers
-  theme(
-    legend.position = "bottom",
-    axis.title.x = element_blank(),
-    strip.text = element_text(face = "bold"),       # Bold facet labels
-    axis.title.y = element_text(face = "bold")      # Bold y-axis title
-  )
-
-# Display the plot in the R graphics window
-MeanWeight_plots
-
-# Save the plot to file (JPEG format) with high resolution
-ggsave(
-  filename = paste0(save_dir, "MeanWeight_plots.jpeg"),  # Note: removed space in filename
-  plot = MeanWeight_plots,
-  width = 11, height = 7.5, units = "in", dpi = 400
-)
-# Trim extra whitespace from species names to ensure consistency
-time_series_mw$Species <- trimws(time_series_mw$Species)
-
-# Set factor levels for Species to ensure consistent ordering across plots
-species <- levels(time_series_mw$Species) <- c(
-  "AMERICAN PLAICE", "ATLANTIC COD", "ATLANTIC HALIBUT", "HERRING",
-  "REDFISH UNSEPARATED", "GREENLAND HALIBUT", "HADDOCK", "SANDLANCES",
-  "SILVER HAKE", "SPINY DOGFISH", "WHITE HAKE", "WITCH FLOUNDER", "YELLOWTAIL FLOUNDER"
-)
-
-# Generate a multi-panel plot of mean body weight time series for each species
-MeanWeight_plots = ggplot(time_series_mw, aes(x = Year, y = MeanWeight, colour = scen, fill = scen)) +
-
-  # Facet by species with fixed order and free y-axis scales
-  facet_wrap(~factor(Species, levels = species), scales = "free") +
-
-  # Add observed data points as small black dots
-  geom_point(aes(y = MeanWeight), colour = "black", size = 0.5) +
-
-  # Add simulation uncertainty as shaded ribbon (min to max range)
-  geom_ribbon(data = time_series_mw, aes(ymin = sim_lower, ymax = sim_upper), 
-              alpha = 0.3, colour = NA) +
-
-  # Add simulation mean lines for each scenario
-  geom_line(data = time_series_mw, aes(y = sim_mean, colour = scen)) +
-
-  # Define custom colors for scenarios (no legend title)
-  scale_colour_manual(
-    name = NULL,
-    values = c("grey70", "#4575B4", "#D73027"),
-    labels = c("Calibration", "Fishing mortality only", "Fishing with additional mortality")
-  ) +
-  scale_fill_manual(
-    name = NULL,
-    values = c("grey70", "#4575B4", "#D73027"),
-    labels = c("Calibration", "Fishing mortality only", "Fishing with additional mortality")
-  ) +
-
-  # Label the y-axis
-  labs(y = "Mean Body Size (weight, g)") +
-
-  # Add a vertical dashed line at 1986 to indicate scenario transition
-  geom_vline(xintercept = 1986, linetype = "dashed", color = "black") +
-
-  # Apply a clean publication-style theme
-  theme_pubr() +
-
-  # Additional theme customization: legend, axis labels, facet headers
-  theme(
-    legend.position = "bottom",
-    axis.title.x = element_blank(),
-    strip.text = element_text(face = "bold"),       # Bold facet labels
-    axis.title.y = element_text(face = "bold")      # Bold y-axis title
-  )
-
-# Display the plot in the R graphics window
-MeanWeight_plots
-
-# Save the plot to file (JPEG format) with high resolution
-ggsave(
-  filename = paste0(save_dir, "MeanWeight_plots.jpeg"),  # Note: removed space in filename
-  plot = MeanWeight_plots,
-  width = 11, height = 7.5, units = "in", dpi = 400
-)
-```
-
 Calculate spearman correlation across all simulations
 
 ```{r}
@@ -1760,8 +1696,8 @@ for (i in 1:1000) {
 }
 
 # Add labels and merge results
-cor_scen1$scen <- "Fishing mortality only"
-cor_scen2$scen <- "Fishing with additional mortality"
+cor_scen1$scen <- "Fishing without additional natural mortality"
+cor_scen2$scen <- "Fishing with additional natural mortality"
 
 cor_results <- bind_rows(cor_scen1, cor_scen2) %>% 
   rename(Biomass = cor_bio, Catch = cor_catch, Mean_weight = cor_mean) %>%
@@ -1776,10 +1712,10 @@ cor_plot <- ggplot(cor_results_long, aes(x = Variable, y = value, fill = scen)) 
   geom_violin(trim = FALSE, scale = "width") + 
   theme_bw() + 
   labs(x = NULL, y = "Spearman Correlation") + 
-  scale_fill_manual(values = c("Fishing mortality only" = "blue", 
-                               "Fishing with additional mortality" = "red")) +
+  scale_fill_manual(values = c("Fishing with additional natural mortality" = "red", 
+                               "Fishing without additional natural mortality" = "blue")) +
   theme(
-    axis.text.x = element_text(angle = 0, hjust = 0.5, size = 12, face = "bold"),
+    axis.text.x = element_text(angle = 0, hjust = 0.5, size = 9, face = "bold"),
     axis.text.y = element_text(size = 11, face = "bold"),
     axis.title.y = element_text(size = 11, face = "bold"),
     legend.title = element_blank(),
@@ -1790,9 +1726,5 @@ cor_plot <- ggplot(cor_results_long, aes(x = Variable, y = value, fill = scen)) 
 
 cor_plot
 ggsave(filename = paste0(save_dir, "cor_plot.jpeg"), plot = cor_plot,width = 11, height = 7.5, units = "in",dpi = 400)
-```
-
-```{r}
-
 ```
 

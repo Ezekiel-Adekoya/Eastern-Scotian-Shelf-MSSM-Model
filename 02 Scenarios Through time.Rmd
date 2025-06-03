@@ -6,15 +6,15 @@ output: html_document
 ---
 
 Set up directories
-```{r setup, include=TRUE}
+```{r setup, include=FALSE}
 library("here")
 dir <- setwd(here())
-knitr::opts_knit$set(root.dir = "~/Mac/Dropbox/Desktop/Eastern-Scotian-Shelf-Model/")
-knitr::opts_knit$set(root.dir = dir)
+knitr::opts_knit$set(root.dir = "~/Mac/Dropbox/Desktop/Eastern Scotian Shelf Model/")
 
 # Define the save directory
 save_dir <- paste0(here(), "/Ess_Output/")
 ```
+
 
 Function to randomize interaction matrix while preserving basic ecological constraints
 ```{r}
@@ -123,8 +123,8 @@ sims_scen1 <- run_random_sims(params_with_seal, n_sims = 1000,effort_scen=effort
 sims_scen2 <- run_random_sims(params_with_seal, n_sims = 1000,effort_scen=effort_with_seal,sd=0.2)
 
 # Save sim outputs
-#saveRDS(sims_scen1,"Ess_output/sims_scen1.RDS")
- #saveRDS(sims_scen2,"Ess_output/sims_scen2.RDS")
+saveRDS(sims_scen1,"Ess_output/sims_scen1.RDS")
+saveRDS(sims_scen2,"Ess_output/sims_scen2.RDS")
 
 sims_scen1<-readRDS("Ess_output/sims_scen1.RDS")
 sims_scen2<-readRDS("Ess_output/sims_scen2.RDS")
@@ -215,10 +215,10 @@ biomass_plot_with <- ggplot(time_series, aes(x = Year, y = Biomass, colour = Sce
   geom_line(aes(y = sim_mean)) +
   scale_colour_manual(name = NULL,  # Removes legend title
                       values = c("grey70", "#4575B4", "#D73027"),
-                      labels = c("Calibration", "Fishing mortality only", "Fishing with additional mortality")) +
+                      labels = c("Calibration", "Fishing without additional natural mortality", "Fishing with additional natural mortality")) +
   scale_fill_manual(name = NULL,  # Removes legend title
                     values = c("grey70", "#4575B4", "#D73027"),
-                    labels = c("Calibration", "Fishing mortality only", "Fishing with additional mortality")) +
+                    labels = c("Calibration", "Fishing without additional natural mortality", "Fishing with additional natural mortality")) +
   geom_vline(xintercept = 1986, linetype = "dashed", color = "black") +
   theme_pubr() +
   theme(
@@ -226,6 +226,7 @@ biomass_plot_with <- ggplot(time_series, aes(x = Year, y = Biomass, colour = Sce
     axis.title.x = element_blank()
   )+
   guides(colour = guide_legend(title = NULL), fill = guide_legend(title = NULL))  # Remove legend headings
+
 ggsave(filename = paste0(save_dir, "biomass_plot_with.jpeg"), plot = biomass_plot_with,
        width = 11, height = 8.5, units = "in",dpi = 400)
 ```
@@ -298,22 +299,35 @@ Reorder Species in the plot to go from from small to large max body size.
 # species_c<-species[-1] #remove sandlances as not fished
 time_series_c <- subset(time_series_c,!is.na(time_series_c$Species))
 species<-levels(time_series_c $Species)<- c("AMERICAN PLAICE", "ATLANTIC COD","ATLANTIC HALIBUT", "HERRING","REDFISH UNSEPARATED", "GREENLAND HALIBUT", "HADDOCK","SANDLANCES", "SILVER HAKE", "SPINY DOGFISH",  "WHITE HAKE", "WITCH FLOUNDER", "YELLOWTAIL FLOUNDER")
-yield_plot_with = ggplot(time_series_c, aes(x=Year, y=Yield, colour=scen, fill=scen)) +
-  facet_wrap(~factor(Species, levels = c("HERRING", "WITCH FLOUNDER", "REDFISH UNSEPARATED",   "YELLOWTAIL FLOUNDER", "SILVER HAKE", "AMERICAN PLAICE", "GREENLAND HALIBUT", "HADDOCK", "SPINY DOGFISH", "WHITE HAKE",  "ATLANTIC COD", "ATLANTIC HALIBUT")), scales="free") +
-  geom_point(aes(y=Yield), colour="black", size=0.5) +
-  geom_ribbon(data = time_series_c, aes(ymin=sim_lower, ymax=sim_upper), alpha=0.3, colour=NA) +
-  geom_line(data = time_series_c, aes(y=sim_mean, colour=scen)) +
-  scale_colour_manual(name = NULL,  # Removes legend title
+yield_plot_with = ggplot(time_series_c, aes(x=Year, y=Yield, colour=scen, fill=scen)) +   
+  facet_wrap(~factor(Species, levels = c("HERRING", "WITCH FLOUNDER", "REDFISH UNSEPARATED", 
+                                         "YELLOWTAIL FLOUNDER", "SILVER HAKE", "AMERICAN PLAICE", 
+                                         "GREENLAND HALIBUT", "HADDOCK", "SPINY DOGFISH", 
+                                         "WHITE HAKE", "ATLANTIC COD", "ATLANTIC HALIBUT")), 
+              scales="free") +   
+  geom_point(aes(y=Yield), colour="black", size=0.3) +   
+  geom_ribbon(data = time_series_c, aes(ymin=sim_lower, ymax=sim_upper), alpha=0.3, colour=NA) +   
+  geom_line(data = time_series_c, aes(y=sim_mean, colour=scen)) +   
+  scale_colour_manual(name = NULL,  
                       values = c("grey70", "#4575B4", "#D73027"),
-                      labels = c("Calibration", "Fishing mortality only", "Fishing with additional mortality")) +
-  scale_fill_manual(name = NULL,  # Removes legend title
+                      labels = c("Calibration", 
+                                 "Fishing without additional natural mortality", 
+                                 "Fishing with additional natural mortality")) +   
+  scale_fill_manual(name = NULL,  
                     values = c("grey70", "#4575B4", "#D73027"),
-                    labels = c("Calibration", "Fishing mortality only", "Fishing with additional mortality")) +
-  labs(y = "Catches") + 
-  geom_vline(xintercept = 1986, linetype="dashed", color = "black") +
-  theme_pubr() +
-  theme(legend.position = "bottom",
-        axis.title.x = element_blank())
+                    labels = c("Calibration", 
+                               "Fishing without additional natural mortality", 
+                               "Fishing with additional natural mortality")) +   
+  labs(y = "Catches", x = "Year") +   
+  geom_vline(xintercept = 1986, linetype="dashed", color = "black") +   
+  theme_pubr() +   
+  theme(
+    legend.position = "bottom",
+    legend.text = element_text(face = "bold"),
+    axis.title.x = element_text(face = "bold"),
+    axis.title.y = element_text(face = "bold"),
+    strip.text = element_text(face = "bold", size = 8)
+  )
 ggsave(filename = paste0(save_dir, "yield_plot_with.jpeg"), plot = yield_plot_with,
        width = 11, height = 7.5, units = "in",dpi = 400)
 yield_plot_with
@@ -355,66 +369,7 @@ tabl_c<-modStats_c %>%
 
 ```
 
-# # Calculate spearman correlation across all simulations
-```{r}
-# cor_scen2<-cor_scen1<-expand.grid(sim=1:1000,cor_bio=NA,cor_catch=NA)
-#  
-#  for (i in 1:1000){
-# 
-#   #scen 1 no additional mortality
-#   bio<-plotBiomass(sims_scen1[[i]],return_data = T)
-#   yield<-sims_scen1[[i]] |> plotYieldGear(return_data = T)  |> filter(Gear!="Seals") |> filter(Species!="SANDLANCES")
-#   yield<- yield_ts %>%
-#     left_join(yield,by = c("Year", "Species"))
-# 
-#   cor_scen1$cor_bio[i]<-cor(bio$Biomass,biomass_ts$Biomass,method="spearman")
-#   cor_scen1$cor_catch[i]<-cor(yield$Yield_Obs,yield$Yield,method="spearman",use="pairwise.complete.obs")
-#   plot(yield$Yield,yield$Yield_Obs,log="xy")
-#   plot(bio$Biomass,biomass_ts$Biomass,log="xy")
-# 
-#   #scen 2 with additonal mortality
-#   bio<-plotBiomass(sims_scen2[[i]],return_data = T)
-#   yield<-sims_scen2[[i]] |> plotYieldGear(return_data = T)  |> filter(Gear!="Seals") |> filter(Species!="SANDLANCES")
-#   yield<- yield_ts %>%
-#     left_join(yield,by = c("Year", "Species"))
-# 
-#   cor_scen2$cor_bio[i]<-cor(bio$Biomass,biomass_ts$Biomass,method="spearman")
-#   cor_scen2$cor_catch[i]<-cor(yield$Yield_Obs,yield$Yield,method="spearman",use="pairwise.complete.obs")
-#   plot(yield$Yield,yield$Yield_Obs,log="xy")
-#   plot(bio$Biomass,biomass_ts$Biomass,log="xy")
-# }
-# 
-# cor_scen1$scen<-"without additional mortality"
-# cor_scen2$scen<-"with additional mortality"
-# 
-# cor_results<-rbind(cor_scen1,cor_scen2)
-# cor_results <- cor_results %>%
-#   rename(Biomass = cor_bio, Catch = cor_catch)
-# 
-# 
-# cor_results <- cor_results |> 
-#   pivot_longer(cols = c(2, 3), names_to = "Variable") |> 
-#   ggplot(aes(x = Variable, y = value, fill = scen)) +
-#   geom_violin() + 
-#   theme_bw() +  
-#   labs(x = NULL, y = "Correlation Value") +  
-#   theme(
-#     axis.text.x = element_text(angle = 360, hjust = 1, vjust = 1, size = 12, face = "bold"),  # Bold x-axis text
-#     axis.text.y = element_text(size = 12, face = "bold"),  # Y-axis labels size 9, bold
-#     axis.title.x = element_text(size = 12, face = "bold"),  # X-axis title bold and size 9
-#     axis.title.y = element_text(size = 12, face = "bold"),
-#    legend.title = element_blank(),
-#     legend.text = element_text(size = 10),  # Legend text size
-#     legend.position = "right",  # Place legend on the right # Y-axis title bold and size 9
-#     panel.grid.major = element_blank()
-#   ) +
-#   scale_x_discrete(labels = c(expression(bold("Biomass")), expression(bold("Catch"))))  # Bold x-axis categories
-# 
-# cor_results
-# 
-# ggsave(filename = paste0(save_dir, "cor_results.jpeg"), plot = cor_results,
-#        width = 11, height = 7.5, units = "in",dpi = 400)
-```
+
 
 # compare size-based trophic cascades under each scenario relative to histrorical when cod were abundant
 ```{r}
@@ -435,11 +390,11 @@ sf2 <- mutate(left_join(spectra_reference, spectra_scen2, by = c("w", "Legend"))
 
 
 # combine
-sf1$scenario <- "Fishing mortality alone"
-sf2$scenario <- "Fishing with additional mortality"
+sf1$scenario <- "Fishing without additional natural mortality"
+sf2$scenario <- "Fishing with additional natural mortality"
 combined_data <- rbind(sf1, sf2)
 
-linecolours<-c("#4575B4","#D73027")
+linecolours<-c("#4575B4", "#D73027")
 combined_data <- combined_data %>%
   mutate(Legend = case_when(
     Legend == "TURBOT, GREENLAND HALIBUT" ~ "GREENLAND HALIBUT",
@@ -448,11 +403,11 @@ combined_data <- combined_data %>%
     TRUE ~ Legend  # Leave other values unchanged
   ))
 combined_data$Legend <- factor(combined_data$Legend, 
-                               levels = c("SANDLANCES", "HERRING", "REDFISH UNSEPARATED", 
+                               levels = c("Resource","SANDLANCES", "HERRING", "REDFISH UNSEPARATED", 
                                           "WITCH FLOUNDER", "YELLOWTAIL FLOUNDER", "AMERICAN PLAICE", 
                                           "HADDOCK", "SILVER HAKE", "WHITE HAKE", 
                                           "SPINY DOGFISH", "ATLANTIC COD", 
-                                          "ATLANTIC HALIBUT", "GREENLAND HALIBUT", "Resource"))
+                                          "ATLANTIC HALIBUT", "GREENLAND HALIBUT"))
 # Then create the plot
 trophic_cascades_plot <- ggplot(combined_data, aes(x = w, y = rel_diff, colour = scenario)) +
   geom_line(linewidth = 0.8) +
@@ -487,143 +442,5 @@ ggsave(filename = paste0(save_dir, "aaa.jpeg"), plot = aaa,
        width = 11, height = 7.5, units = "in",dpi = 400)
 ```
 
-# # Calculate spearman correlation across all simulations
-```{r}
-# Initialize correlation data frames for scenarios 1 and 2
-cor_scen1 <- expand.grid(sim = 1:1000, cor_bio = NA, cor_catch = NA, cor_mean = NA)
-cor_scen2 <- expand.grid(sim = 1:1000, cor_bio = NA, cor_catch = NA, cor_mean = NA)
 
-# Load the observed data outside the loop
-mean_weight_observed <- read.csv("Ess_data/Mean_weight_by_species.csv")
-
-# Load simulation data
-sims_scen1 <- readRDS("Ess_output/sims_scen1.RDS")
-sims_scen2 <- readRDS("Ess_output/sims_scen2.RDS")
-
-
-# Check the structure of mean_weight_observed to understand what we're working with
-print(str(mean_weight_observed))
-
-# Loop through the simulations
-for (i in 1:1000) {
-  
-  # Scenario 1: No additional mortality
-  bio <- plotBiomass(sims_scen1[[i]], return_data = TRUE)
-  yield <- sims_scen1[[i]] |> 
-    plotYieldGear(return_data = TRUE) |> 
-    filter(Gear != "Seals") |> 
-    filter(Species != "SANDLANCES")
-  yield <- yield_ts %>% left_join(yield, by = c("Year", "Species"))
-  
-  # Correctly get mean weights for scenario 1
-  sim_model <- sims_scen1[[i]]
-  sim_mean <- getMeanWeight(sim_model, min_w=species_params(params)$biomass_cutoff, return_data = TRUE)
-  
-  # Convert named numeric vector to data frame
-  Mean_weight_scen1 <- data.frame(
-    year = as.numeric(names(sim_mean)),
-    MeanWeight = as.numeric(sim_mean)
-  )
-  
-  # Calculate correlations for Scenario 1
-  cor_scen1$cor_bio[i] <- cor(bio$Biomass, biomass_ts$Biomass, method = "spearman")
-  cor_scen1$cor_catch[i] <- cor(yield$Yield_Obs, yield$Yield, method = "spearman", use = "pairwise.complete.obs")
-  
-  # Make sure data is properly aligned for mean weight correlation
-  # First, check if mean_weight_observed has year column
-  if("year" %in% colnames(mean_weight_observed)) {
-    # Join datasets by year to ensure proper alignment
-    combined_data <- Mean_weight_scen1 %>%
-      inner_join(mean_weight_observed, by = "year")
-    
-    # Now calculate correlation only if there are matching rows
-    if(nrow(combined_data) > 0) {
-      cor_scen1$cor_mean[i] <- cor(combined_data$MeanWeight, combined_data$Weight, 
-                                  method = "spearman", use = "pairwise.complete.obs")
-    }
-  } else {
-    # If no year column, we need to make sure the vectors are the same length
-    min_length <- min(nrow(Mean_weight_scen1), nrow(mean_weight_observed))
-    cor_scen1$cor_mean[i] <- cor(Mean_weight_scen1$MeanWeight[1:min_length], 
-                                mean_weight_observed$Weight[1:min_length], 
-                                method = "spearman", use = "pairwise.complete.obs")
-  }
-  
-  # Scenario 2: With additional mortality
-  bio <- plotBiomass(sims_scen2[[i]], return_data = TRUE)
-  yield <- sims_scen2[[i]] |> 
-    plotYieldGear(return_data = TRUE) |> 
-    filter(Gear != "Seals") |> 
-    filter(Species != "SANDLANCES")
-  yield <- yield_ts %>% left_join(yield, by = c("Year", "Species"))
-  
-  # Correctly get mean weights for scenario 2
-  sim_model2 <- sims_scen2[[i]]
-  sim_mean2 <- getMeanWeight(sim_model2, min_w=species_params(params)$biomass_cutoff, return_data = TRUE)
-  
-  # Convert named numeric vector to data frame
-  Mean_weight_scen2 <- data.frame(
-    year = as.numeric(names(sim_mean2)),
-    MeanWeight = as.numeric(sim_mean2)
-  )
-  
-  # Calculate correlations for Scenario 2
-  cor_scen2$cor_bio[i] <- cor(bio$Biomass, biomass_ts$Biomass, method = "spearman")
-  cor_scen2$cor_catch[i] <- cor(yield$Yield_Obs, yield$Yield, method = "spearman", use = "pairwise.complete.obs")
-  
-  # Make sure data is properly aligned for mean weight correlation - Scenario 2
-  if("year" %in% colnames(mean_weight_observed)) {
-    # Join datasets by year to ensure proper alignment
-    combined_data <- Mean_weight_scen2 %>%
-      inner_join(mean_weight_observed, by = "year")
-    
-    # Now calculate correlation only if there are matching rows
-    if(nrow(combined_data) > 0) {
-      cor_scen2$cor_mean[i] <- cor(combined_data$MeanWeight, combined_data$Weight, 
-                                  method = "spearman", use = "pairwise.complete.obs")
-    }
-  } else {
-    # If no year column, we need to make sure the vectors are the same length
-    min_length <- min(nrow(Mean_weight_scen2), nrow(mean_weight_observed))
-    cor_scen2$cor_mean[i] <- cor(Mean_weight_scen2$MeanWeight[1:min_length], 
-                                mean_weight_observed$Weight[1:min_length], 
-                                method = "spearman", use = "pairwise.complete.obs")
-  }
-}
-
-# Assign scenario labels
-cor_scen1$scen <- "Fishing mortality only"
-cor_scen2$scen <- "Fishing with additional mortality"
-
-# Combine results and rename variables
-cor_results <- rbind(cor_scen1, cor_scen2)
-cor_results <- cor_results %>% 
-  rename(Biomass = cor_bio, Catch = cor_catch, Mean_weight = cor_mean)
-
-cor_results_long <- cor_results |> 
-  pivot_longer(cols = c("Biomass", "Catch", "Individual Mean_weight"), names_to = "Variable") |>
-  # Add this line to rename the variable
-  mutate(Variable = ifelse(Variable == "Mean_weight", "Mean body size", Variable))
-
-# Create violin plot
-cor_results <- ggplot(cor_results_long, aes(x = Variable, y = value, fill = scen)) + 
-  geom_violin() + 
-  theme_bw() + 
-  labs(x = NULL, y = "Correlation Value") + 
-  scale_fill_manual(values = c("blue", "red")) +
-  theme(
-    axis.text.x = element_text(angle = 0, hjust = 0.5, size = 12, face = "bold"),
-    axis.text.y = element_text(size = 11, face = "bold"),
-    axis.title.y = element_text(size = 11, face = "bold"),
-    legend.title = element_blank(),
-    legend.text = element_text(size = 10),
-    legend.position = "right",
-    panel.grid.major = element_blank()
-  )
-# Correlation between scenarios
-cor_results
-cor_results
-ggsave(filename = paste0(save_dir, "cor_results.jpeg"), plot = cor_results,
-       width = 11, height = 7.5, units = "in",dpi = 400)
-```
 

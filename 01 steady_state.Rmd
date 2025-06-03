@@ -25,22 +25,20 @@ library(patchwork)
 
 Set up directories
 
-```{r setup, include=TRUE}
+```{r setup, include=FALSE}
 library("here")
 dir <- setwd(here())
-knitr::opts_knit$set(root.dir = "~/Mac/Dropbox/Desktop/Eastern-Scotian-Shelf-Model/")
-knitr::opts_knit$set(root.dir = dir)
+knitr::opts_knit$set(root.dir = "~/Mac/Dropbox/Desktop/Eastern Scotian Shelf Model/")
 
 # Define the save directory
 save_dir <- paste0(here(), "/Ess_Output/")
 ```
 
 
+
 Read in Species Parameters
 ```{r}
 external_species_info <- read.csv("Ess_data/ESS_species_params.csv")
-external_species_info$temp_min  <- c(0.6, 0.5, 0.4, 0.5, 0.4, 0.5, 1.4, 0.5, 0.9, 4.2, 1.2, 0.6, 0.4)
-external_species_info$temp_max <- c(10.3, 10.3, 7.9, 11.2, 6.6, 4.2, 12.1, 8.9,7.8, 18.7, 7.8, 11.4, 9.7)
 names(external_species_info)[1] <- "species"
 years_to_use<-as.character(1970:1985)
 ```
@@ -193,7 +191,7 @@ external_species_info<-select(external_species_info,c("species","w_max","w_mat",
 external_species_info[8,"w_max"]<-154
 external_species_info[8,"w_mat"]<-15
 
-params <- newMultispeciesParams(external_species_info,interaction = NULL, resource_dynamics = "resource_semichemostat",kappa=1e8,gear_params = gear_params)
+params <- newMultispeciesParams(external_species_info,interaction = NULL, resource_dynamics = "resource_semichemostat",kappa=1e12,gear_params = gear_params)
 
 ```
 
@@ -607,8 +605,6 @@ ggsave(filename = paste0(save_dir, "size_distributions.jpeg"), plot = size_distr
        width = 11, height = 8.5, units = "in",dpi = 400)
 ```
  
- 
-
 
 Plot Observed vs model calibration period
 
@@ -1196,7 +1192,7 @@ yield_plot <- yield_extract1 %>%
 print(yield_plot)
 
 
-#ggsave(filename = paste0(save_dir, "yield_plot.jpeg"), plot = yield_plot, width = 13, height = 9, units = "in", dpi = 300)
+ggsave(filename = paste0(save_dir, "yield_plot.jpeg"), plot = yield_plot, width = 13, height = 9, units = "in", dpi = 300)
 yield_plot
 ```
 
@@ -1298,7 +1294,7 @@ biomass_plot <- biomass_extract1 %>%
 # Print the plot
 print(biomass_plot)
 
-#ggsave(filename = paste0(save_dir, "biomass_plot.jpeg"), plot = biomass_plot, width = 13, height = 9, units = "in", dpi = 300)
+ggsave(filename = paste0(save_dir, "biomass_plot.jpeg"), plot = biomass_plot, width = 13, height = 9, units = "in", dpi = 300)
 
 ```
 

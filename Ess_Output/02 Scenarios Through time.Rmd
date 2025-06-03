@@ -634,6 +634,149 @@ ggsave(filename = paste0(save_dir, "cor_results.jpeg"), plot = cor_results,
 ```
 
 
+
+
+# # Calculate spearman correlation across all simulations
+```{r}
+# Initialize correlation data frames for scenarios 1 and 2
+cor_scen1 <- expand.grid(sim = 1:1000, cor_bio = NA, cor_catch = NA, cor_mean = NA)
+cor_scen2 <- expand.grid(sim = 1:1000, cor_bio = NA, cor_catch = NA, cor_mean = NA)
+
+# Load the observed data outside the loop
+mean_weight_observed <- read.csv("Ess_data/Mean_weight_by_species.csv")
+
+# Load simulation data
+sims_scen1 <- readRDS("Ess_output/sims_scen1.RDS")
+sims_scen2 <- readRDS("Ess_output/sims_scen2.RDS")
+
+
+# Check the structure of mean_weight_observed to understand what we're working with
+print(str(mean_weight_observed))
+
+# Loop through the simulations
+for (i in 1:1000) {
+  
+  # Scenario 1: No additional mortality
+  bio <- plotBiomass(sims_scen1[[i]], return_data = TRUE)
+  yield <- sims_scen1[[i]] |> 
+    plotYieldGear(return_data = TRUE) |> 
+    filter(Gear != "Seals") |> 
+    filter(Species != "SANDLANCES")
+  yield <- yield_ts %>% left_join(yield, by = c("Year", "Species"))
+  
+  # Correctly get mean weights for scenario 1
+  sim_model <- sims_scen1[[i]]
+  sim_mean <- getMeanWeight(sim_model, min_w=species_params(params)$biomass_cutoff, return_data = TRUE)
+  
+  # Convert named numeric vector to data frame
+  Mean_weight_scen1 <- data.frame(
+    year = as.numeric(names(sim_mean)),
+    MeanWeight = as.numeric(sim_mean)
+  )
+  
+  # Calculate correlations for Scenario 1
+  cor_scen1$cor_bio[i] <- cor(bio$Biomass, biomass_ts$Biomass, method = "spearman")
+  cor_scen1$cor_catch[i] <- cor(yield$Yield_Obs, yield$Yield, method = "spearman", use = "pairwise.complete.obs")
+  
+  # Make sure data is properly aligned for mean weight correlation
+  # First, check if mean_weight_observed has year column
+  if("year" %in% colnames(mean_weight_observed)) {
+    # Join datasets by year to ensure proper alignment
+    combined_data <- Mean_weight_scen1 %>%
+      inner_join(mean_weight_observed, by = "year")
+    
+    # Now calculate correlation only if there are matching rows
+    if(nrow(combined_data) > 0) {
+      cor_scen1$cor_mean[i] <- cor(combined_data$MeanWeight, combined_data$Weight, 
+                                  method = "spearman", use = "pairwise.complete.obs")
+    }
+  } else {
+    # If no year column, we need to make sure the vectors are the same length
+    min_length <- min(nrow(Mean_weight_scen1), nrow(mean_weight_observed))
+    cor_scen1$cor_mean[i] <- cor(Mean_weight_scen1$MeanWeight[1:min_length], 
+                                mean_weight_observed$Weight[1:min_length], 
+                                method = "spearman", use = "pairwise.complete.obs")
+  }
+  
+  # Scenario 2: With additional mortality
+  bio <- plotBiomass(sims_scen2[[i]], return_data = TRUE)
+  yield <- sims_scen2[[i]] |> 
+    plotYieldGear(return_data = TRUE) |> 
+    filter(Gear != "Seals") |> 
+    filter(Species != "SANDLANCES")
+  yield <- yield_ts %>% left_join(yield, by = c("Year", "Species"))
+  
+  # Correctly get mean weights for scenario 2
+  sim_model2 <- sims_scen2[[i]]
+  sim_mean2 <- getMeanWeight(sim_model2, min_w=species_params(params)$biomass_cutoff, return_data = TRUE)
+  
+  # Convert named numeric vector to data frame
+  Mean_weight_scen2 <- data.frame(
+    year = as.numeric(names(sim_mean2)),
+    MeanWeight = as.numeric(sim_mean2)
+  )
+  
+  # Calculate correlations for Scenario 2
+  cor_scen2$cor_bio[i] <- cor(bio$Biomass, biomass_ts$Biomass, method = "spearman")
+  cor_scen2$cor_catch[i] <- cor(yield$Yield_Obs, yield$Yield, method = "spearman", use = "pairwise.complete.obs")
+  
+  # Make sure data is properly aligned for mean weight correlation - Scenario 2
+  if("year" %in% colnames(mean_weight_observed)) {
+    # Join datasets by year to ensure proper alignment
+    combined_data <- Mean_weight_scen2 %>%
+      inner_join(mean_weight_observed, by = "year")
+    
+    # Now calculate correlation only if there are matching rows
+    if(nrow(combined_data) > 0) {
+      cor_scen2$cor_mean[i] <- cor(combined_data$MeanWeight, combined_data$Weight, 
+                                  method = "spearman", use = "pairwise.complete.obs")
+    }
+  } else {
+    # If no year column, we need to make sure the vectors are the same length
+    min_length <- min(nrow(Mean_weight_scen2), nrow(mean_weight_observed))
+    cor_scen2$cor_mean[i] <- cor(Mean_weight_scen2$MeanWeight[1:min_length], 
+                                mean_weight_observed$Weight[1:min_length], 
+                                method = "spearman", use = "pairwise.complete.obs")
+  }
+}
+
+# Assign scenario labels
+cor_scen1$scen <- "Fishing without additional natural mortality"
+cor_scen2$scen <- "Fishing with additional natural mortality" 
+
+# Combine results and rename variables
+cor_results <- rbind(cor_scen1, cor_scen2)
+cor_results <- cor_results %>% 
+  rename(Biomass = cor_bio, Catch = cor_catch, Mean_weight = cor_mean)
+
+cor_results_long <- cor_results |> 
+  pivot_longer(cols = c("Biomass", "Catch", "Mean_weight"), names_to = "Variable") |>
+  # Add this line to rename the variable
+  mutate(Variable = ifelse(Variable == "Mean_weight", "Individual Mean body size", Variable))
+
+# Create violin plot
+cor_results <- ggplot(cor_results_long, aes(x = Variable, y = value, fill = scen)) + 
+  geom_violin() + 
+  theme_bw() + 
+  labs(x = NULL, y = "Correlation Value") + 
+  scale_fill_manual(values = c("blue", "red")) +
+  theme(
+    axis.text.x = element_text(angle = 0, hjust = 0.5, size = 12, face = "bold"),
+    axis.text.y = element_text(size = 11, face = "bold"),
+    axis.title.y = element_text(size = 11, face = "bold"),
+    legend.title = element_blank(),
+    legend.text = element_text(size = 10),
+    legend.position = "right",
+    panel.grid.major = element_blank()
+  )
+# Correlation between scenarios
+cor_results
+
+ggsave(filename = paste0(save_dir, "cor_results.jpeg"), plot = cor_results,
+       width = 11, height = 7.5, units = "in",dpi = 400)
+```
+
+
 ```{r}
 
 ```

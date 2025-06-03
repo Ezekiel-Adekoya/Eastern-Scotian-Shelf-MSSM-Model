@@ -46,7 +46,7 @@ unique(sub_pdpylen$SCINAME)
 sub_pdpylen$PYLEN <-sub_pdpylen$PYLEN/100
 
 #save subset file
-write.csv(sub_pdpylen,"predpreylengths.csv")
+write.csv(sub_pdpylen,"Mac/Dropbox/Desktop/Eastern Scotian Shelf Model/Ess_data/predpreylengths.csv")
 
 #convert lengths to weights
 
