@@ -104,7 +104,6 @@ minimum size in survey - assume 10 but check the DFO spreadsheet
 ```{r}
 external_species_info$biomass_observed <- mean_biomass_obs$biomass_observed
 
-
 external_species_info$yield_observed <- mean_catch_nafo$yield_observed
 ```
 
@@ -402,7 +401,7 @@ If needed, tuned reproduction_level to produce desire Fmsy for each species (vie
    params <- steady(params)
    
    #check cod
-   plotYieldVsF(params,species = 2)
+   plotYieldVsF(params,species = 1)
    
 ```
 
@@ -456,6 +455,12 @@ plotFeedingLevel(params)
 ```
 #Growth curves for supplements
 ```{r}
+custom_labels <- c(
+  "COD(ATLANTIC)" = "ATLANTIC COD",
+  "HERRING(ATLANTIC)" = "HERRING",
+  "TURBOT, GREENLAND HALIBUT" = "GREENLAND HALIBUT",
+  "SANDLANCES" = "SAND LANCE"
+)
 GrowthCurves = plotGrowthCurves(params, species_panel = TRUE, max_age = 20) +
   theme_minimal(base_size = 14) +  # Improve readability
   scale_color_viridis_d() +        # Better color differentiation
@@ -467,15 +472,18 @@ GrowthCurves = plotGrowthCurves(params, species_panel = TRUE, max_age = 20) +
   theme(
     panel.grid = element_blank(),  # Remove grid lines
     panel.spacing = unit(1, "lines"),  # Adjust facet spacing
-    strip.text = element_text(size = 11), # Remove facet labels (species names)
-    axis.text = element_text(size = 11),
-    axis.title = element_text(size = 11),
+    strip.text = element_text(size = 9, face = "bold"), # Remove facet labels (species names)
+    axis.text = element_text(size = 9, face = "bold"),
+    axis.title = element_text(size = 9, face = "bold"),
     axis.line = element_line(color = "black", size = 0.5),  # Add axis lines
     strip.background = element_rect(fill = "grey", color = "black", size = 1),  # Grey box around species names
     legend.position = "none"  # Remove legend
-  )
+  )+
+  facet_wrap(~ Species, scales = "free_y", labeller = labeller(Species = custom_labels))
+
 ggsave(filename = paste0(save_dir, "GrowthCurves.jpeg"), plot = GrowthCurves,
        width = 11, height = 8.5, units = "in",dpi = 400)
+GrowthCurves
 ```
 
 
@@ -632,7 +640,7 @@ theme_bw() +
     geom_hline(yintercept = 0, color = "black", size = 0.1) +
   annotate("text", x = Inf, y = Inf, label = expression(bold("(a)")),
          parse = TRUE, size = 3, hjust = 21, vjust = 2.1) +
-  annotate("text", x = Inf, y = Inf, label = expression(bold("R = 0.98")),
+  annotate("text", x = Inf, y = Inf, label = expression(bold("R = 0.923")),
         parse = TRUE, size = 3, hjust = 1.1, vjust = 27.1)
 
 Calibration_plot_yield
@@ -677,7 +685,7 @@ Plot Observed vs model error calibration period
 ```{r}
 #Extract yield data
 
-Calibration_pb_yield <- plotYieldObservedVsModel(params, ratio = FALSE, labels = F, return_data = TRUE)
+Calibration_pb_yield <- plotYieldObservedVsModel(params, ratio = FALSE,labels = F, return_data = TRUE)
 
 pb_yield = mean(Calibration_pb_yield$ratio)
 
@@ -716,8 +724,9 @@ Calibration_plot_Y <- ggplot(Calibration_pb_yield, aes(x = species, y = 1 - rati
   annotate("text", x = Inf, y = Inf, label = expression(bold("(c)")),
            parse = TRUE, size = 3, hjust = 21.5, vjust = 2.1) +
   annotate("text", x = Inf, y = min(Calibration_pb_yield$ratio),
-           label = expression(bold("pb = 0.003")), parse = TRUE,
+           label = expression(bold("pb = -0.420")), parse = TRUE,
            size = 3, hjust = 1.1, vjust = 1.1)
+
 Calibration_pb_biomass <- plotBiomassObservedVsModel(params, ratio = FALSE, labels = F, return_data = TRUE)
 
 
@@ -727,7 +736,7 @@ Calibration_pb_biomass$species <- fct_recode(Calibration_pb_biomass$species,
   "ATLANTIC HERRING" = "HERRING(ATLANTIC)"
 )
 
-pb_biomass = mean(Calibration_pb_biomass$ratio)
+pb_biomass = mean(1-Calibration_pb_biomass$ratio)
 
 Calibration_plot_B <- ggplot(Calibration_pb_biomass, aes(x = species, y = 1 - ratio, fill = species)) +
   geom_bar(stat = "identity", position = "dodge", width = 0.3, color = "black") + 
@@ -752,11 +761,11 @@ Calibration_plot_B <- ggplot(Calibration_pb_biomass, aes(x = species, y = 1 - ra
     aspect.ratio = 0.8
   ) +
   geom_hline(yintercept = 0, color = "black", size = 0.1) +
-  annotate("text", x = length(unique(Calibration_pb_biomass$species)) + 0.5, y = max(1 - Calibration_pb_biomass$ratio) * 1.05,
+  annotate("text", x = length(unique(Calibration_pb_biomass$species)) + 0.5, y = max(1 - Calibration_pb_biomass$ratio) ,
            label = expression(bold("(d)")),
                parse = TRUE, size = 3, hjust = 20.5,, vjust = 1.8) +
   annotate("text", x = length(unique(Calibration_pb_biomass$species)) + 0.5, y = min(1 - Calibration_pb_biomass$ratio),
-           label = expression(bold("pb = -0.593")), parse = TRUE,
+           label = expression(bold("pb = -0.003")), parse = TRUE,
            size = 3, hjust = 1.2,vjust = -19.1)
 
 Calibration_plot_B
@@ -768,13 +777,9 @@ Calibration_plot_B
 Calibration_plot <-combined_plot /(Calibration_plot_Y +Calibration_plot_B)
 
 ggsave(filename = paste0(save_dir, "Calibration_plot.jpeg"), plot = Calibration_plot,
-
        width = 11,
-
        height = 8.5,
-
        units = "in",
-
        dpi = 400)
 
 Calibration_plot
@@ -1030,7 +1035,7 @@ plotSpectra(sim2)
 plotDiet(params_with_seal)
 plotGrowthCurves(params_with_seal, species_panel = T, max_age = 50)
 plotGrowthCurves(params_with_seal, species_panel = T, max_age = 50)
-saveRDS(params_with_seal,"Ess_data/params_with_seal_interactions.RDS")
+#saveRDS(params_with_seal,"Ess_data/params_with_seal_interactions.RDS")
 ```
 
 Get modelled biomass, excluding sizes < 10 g to be consistent with the survey biomasses
@@ -1294,7 +1299,7 @@ biomass_plot <- biomass_extract1 %>%
 # Print the plot
 print(biomass_plot)
 
-ggsave(filename = paste0(save_dir, "biomass_plot.jpeg"), plot = biomass_plot, width = 13, height = 9, units = "in", dpi = 300)
+#ggsave(filename = paste0(save_dir, "biomass_plot.jpeg"), plot = biomass_plot, width = 13, height = 9, units = "in", dpi = 300)
 
 ```
 

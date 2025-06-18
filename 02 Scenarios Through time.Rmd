@@ -193,7 +193,7 @@ time_series <- time_series  %>%
   mutate(scen = ifelse(Year<1986,
                          "Calibration",scen))
 
-species<-levels(time_series$Species)<- c("AMERICAN PLAICE", "ATLANTIC COD","ATLANTIC HALIBUT", "HERRING","REDFISH UNSEPARATED", "GREENLAND HALIBUT", "HADDOCK","SANDLANCES", "SILVER HAKE", "SPINY DOGFISH",  "WHITE HAKE", "WITCH FLOUNDER", "YELLOWTAIL FLOUNDER")
+species<-levels(time_series$Species)<- c("AMERICAN PLAICE", "ATLANTIC COD","ATLANTIC HALIBUT", "HERRING","REDFISH UNSEPARATED", "GREENLAND HALIBUT", "HADDOCK","SAND LANCE", "SILVER HAKE", "SPINY DOGFISH",  "WHITE HAKE", "WITCH FLOUNDER", "YELLOWTAIL FLOUNDER")
 
 maxw<-species_params(params)$w_max
 species<-data.frame(species,maxw)
@@ -207,28 +207,33 @@ reorder Species in the plot to go from from small to large max body size.
 time_series <- time_series |> arrange(Species) |> mutate(Species=factor(Species,species))
 
 time_series <- time_series %>%
-  rename(Scenario =  scen )
-biomass_plot_with <- ggplot(time_series, aes(x = Year, y = Biomass, colour = Scenario, fill = Scenario)) +
-  facet_wrap(~factor(Species, levels = c("SANDLANCES","HERRING", "WITCH FLOUNDER", "REDFISH UNSEPARATED",   "YELLOWTAIL FLOUNDER", "SILVER HAKE", "AMERICAN PLAICE", "GREENLAND HALIBUT", "HADDOCK", "SPINY DOGFISH", "WHITE HAKE",  "ATLANTIC COD", "ATLANTIC HALIBUT")), scales="free") +
+  rename(Scenario = scen) %>%
+  mutate(Species = fct_recode(Species, "SAND LANCE" = "SANDLANCES"))
+biomass_plot <- ggplot(time_series, aes(x = Year, y = Biomass, colour = Scenario, fill = Scenario)) +
+  facet_wrap(~factor(Species, levels = c("SAND LANCE", "HERRING", "WITCH FLOUNDER", "REDFISH UNSEPARATED" , "YELLOWTAIL FLOUNDER","SILVER HAKE", "AMERICAN PLAICE","GREENLAND HALIBUT", "HADDOCK", "SPINY DOGFISH","WHITE HAKE", "ATLANTIC COD", "ATLANTIC HALIBUT")), scales = "free") +
   geom_point(aes(y = Biomass), colour = "black", size = 0.5) +
   geom_ribbon(aes(ymin = sim_lower, ymax = sim_upper), alpha = 0.3, colour = NA) +
   geom_line(aes(y = sim_mean)) +
-  scale_colour_manual(name = NULL,  # Removes legend title
+  scale_colour_manual(name = NULL,
                       values = c("grey70", "#4575B4", "#D73027"),
-                      labels = c("Calibration", "Fishing without additional natural mortality", "Fishing with additional natural mortality")) +
-  scale_fill_manual(name = NULL,  # Removes legend title
+                      labels = c("Reference period", "Fishing without additional predation mortality", "Fishing with additional predation mortality")) +
+  scale_fill_manual(name = NULL,
                     values = c("grey70", "#4575B4", "#D73027"),
-                    labels = c("Calibration", "Fishing without additional natural mortality", "Fishing with additional natural mortality")) +
-  geom_vline(xintercept = 1986, linetype = "dashed", color = "black") +
-  theme_pubr() +
+                    labels = c("Reference period", "Fishing without additional predation mortality", "Fishing with additional predation mortality")) +
+  labs(y = "Biomass", x = "Year") +   
+  geom_vline(xintercept = 1986, linetype = "dashed", color = "black") +   
+  theme_pubr() +   
   theme(
     legend.position = "bottom",
-    axis.title.x = element_blank()
-  )+
-  guides(colour = guide_legend(title = NULL), fill = guide_legend(title = NULL))  # Remove legend headings
+    legend.text = element_text(face = "bold"),
+    axis.title.x = element_text(face = "bold"),
+    axis.title.y = element_text(face = "bold"),
+    strip.text = element_text(face = "bold", size = 8)
+  )
 
-ggsave(filename = paste0(save_dir, "biomass_plot_with.jpeg"), plot = biomass_plot_with,
+ggsave(filename = paste0(save_dir, "biomass_plot.jpeg"), plot = biomass_plot,
        width = 11, height = 8.5, units = "in",dpi = 400)
+biomass_plot
 ```
 
 Figure for CATCHES 
@@ -298,26 +303,25 @@ Reorder Species in the plot to go from from small to large max body size.
 # Reorder Species in the plot to go from from small to large max body size.
 # species_c<-species[-1] #remove sandlances as not fished
 time_series_c <- subset(time_series_c,!is.na(time_series_c$Species))
-species<-levels(time_series_c $Species)<- c("AMERICAN PLAICE", "ATLANTIC COD","ATLANTIC HALIBUT", "HERRING","REDFISH UNSEPARATED", "GREENLAND HALIBUT", "HADDOCK","SANDLANCES", "SILVER HAKE", "SPINY DOGFISH",  "WHITE HAKE", "WITCH FLOUNDER", "YELLOWTAIL FLOUNDER")
-yield_plot_with = ggplot(time_series_c, aes(x=Year, y=Yield, colour=scen, fill=scen)) +   
+species<-levels(time_series_c $Species)<- c("AMERICAN PLAICE", "ATLANTIC COD","ATLANTIC HALIBUT", "HERRING","REDFISH UNSEPARATED", "GREENLAND HALIBUT", "HADDOCK","SAND LANCE", "SILVER HAKE", "SPINY DOGFISH",  "WHITE HAKE", "WITCH FLOUNDER", "YELLOWTAIL FLOUNDER")
+
+yield_plot = ggplot(time_series_c, aes(x=Year, y=Yield, colour=scen, fill=scen)) +   
   facet_wrap(~factor(Species, levels = c("HERRING", "WITCH FLOUNDER", "REDFISH UNSEPARATED", 
-                                         "YELLOWTAIL FLOUNDER", "SILVER HAKE", "AMERICAN PLAICE", 
-                                         "GREENLAND HALIBUT", "HADDOCK", "SPINY DOGFISH", 
-                                         "WHITE HAKE", "ATLANTIC COD", "ATLANTIC HALIBUT")), 
+"YELLOWTAIL FLOUNDER", "SILVER HAKE", "AMERICAN PLAICE", "GREENLAND HALIBUT", "HADDOCK", "SPINY DOGFISH", "WHITE HAKE", "ATLANTIC COD", "ATLANTIC HALIBUT")), 
               scales="free") +   
   geom_point(aes(y=Yield), colour="black", size=0.3) +   
   geom_ribbon(data = time_series_c, aes(ymin=sim_lower, ymax=sim_upper), alpha=0.3, colour=NA) +   
   geom_line(data = time_series_c, aes(y=sim_mean, colour=scen)) +   
   scale_colour_manual(name = NULL,  
                       values = c("grey70", "#4575B4", "#D73027"),
-                      labels = c("Calibration", 
-                                 "Fishing without additional natural mortality", 
-                                 "Fishing with additional natural mortality")) +   
+                      labels = c("Reference period", 
+                                 "Fishing without additional predation mortality", 
+                                 "Fishing with additional predation mortality")) +   
   scale_fill_manual(name = NULL,  
                     values = c("grey70", "#4575B4", "#D73027"),
-                    labels = c("Calibration", 
-                               "Fishing without additional natural mortality", 
-                               "Fishing with additional natural mortality")) +   
+                    labels = c("Reference period", 
+                               "Fishing without additional predation mortality", 
+                               "Fishing with additional predation mortality")) +   
   labs(y = "Catches", x = "Year") +   
   geom_vline(xintercept = 1986, linetype="dashed", color = "black") +   
   theme_pubr() +   
@@ -328,15 +332,14 @@ yield_plot_with = ggplot(time_series_c, aes(x=Year, y=Yield, colour=scen, fill=s
     axis.title.y = element_text(face = "bold"),
     strip.text = element_text(face = "bold", size = 8)
   )
-ggsave(filename = paste0(save_dir, "yield_plot_with.jpeg"), plot = yield_plot_with,
+ggsave(filename = paste0(save_dir, "yield_plot.jpeg"), plot = yield_plot,
        width = 11, height = 7.5, units = "in",dpi = 400)
-yield_plot_with
+yield_plot
 ```
 
 
  Comparison of Model Skill Metrics across Model Scenarios
 ```{r}
-# Comparison of Model Skill Metrics across Model Scenarios
 
 # Calculate modStats
 library(openair)
@@ -388,26 +391,22 @@ sf2 <- mutate(left_join(spectra_reference, spectra_scen2, by = c("w", "Legend"))
 # legend_levels <- intersect(names(sims_scen1[[1]]@params@linecolour), unique(sf$Legend))
 # linecolours <- sims_scen1[[1]]@params@linecolour[legend_levels]
 
-
 # combine
-sf1$scenario <- "Fishing without additional natural mortality"
-sf2$scenario <- "Fishing with additional natural mortality"
+sf1$scenario <- "Fishing without additional predation mortality"
+sf2$scenario <- "Fishing with additional predation mortality"
 combined_data <- rbind(sf1, sf2)
 
-linecolours<-c("#4575B4", "#D73027")
+linecolours<-c("#D73027","#4575B4")
 combined_data <- combined_data %>%
   mutate(Legend = case_when(
     Legend == "TURBOT, GREENLAND HALIBUT" ~ "GREENLAND HALIBUT",
     Legend == "HERRING(ATLANTIC)" ~ "HERRING",
     Legend == "COD(ATLANTIC)" ~ "ATLANTIC COD",
+    Legend == "SANDLANCES" ~ "SAND LANCE",
     TRUE ~ Legend  # Leave other values unchanged
   ))
 combined_data$Legend <- factor(combined_data$Legend, 
-                               levels = c("Resource","SANDLANCES", "HERRING", "REDFISH UNSEPARATED", 
-                                          "WITCH FLOUNDER", "YELLOWTAIL FLOUNDER", "AMERICAN PLAICE", 
-                                          "HADDOCK", "SILVER HAKE", "WHITE HAKE", 
-                                          "SPINY DOGFISH", "ATLANTIC COD", 
-                                          "ATLANTIC HALIBUT", "GREENLAND HALIBUT"))
+                               levels = c("Resource","SAND LANCE", "HERRING", "HADDOCK", "YELLOWTAIL FLOUNDER", "WITCH FLOUNDER", "AMERICAN PLAICE", "REDFISH UNSEPARATED", "SILVER HAKE", "SPINY DOGFISH", "ATLANTIC COD", "WHITE HAKE", "GREENLAND HALIBUT", "ATLANTIC HALIBUT"))
 # Then create the plot
 trophic_cascades_plot <- ggplot(combined_data, aes(x = w, y = rel_diff, colour = scenario)) +
   geom_line(linewidth = 0.8) +
