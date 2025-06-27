@@ -24,31 +24,28 @@ library(patchwork)
 ```
 
 Set up directories
-
 ```{r setup, include=FALSE}
 library("here")
 dir <- setwd(here())
 knitr::opts_knit$set(root.dir = "~/Mac/Dropbox/Desktop/Eastern Scotian Shelf Model/")
-
 # Define the save directory
 save_dir <- paste0(here(), "/Ess_Output/")
 ```
 
-
-
 Read in Species Parameters
 ```{r}
-external_species_info <- read.csv("Ess_data/ESS_species_params.csv")
-names(external_species_info)[1] <- "species"
-years_to_use<-as.character(1970:1985)
+external_species_info <- read.csv("Ess_data/ESS_species_params.csv") # Read in Species Parameters
+names(external_species_info)[1] <- "species" #rename species column 
+years_to_use<-as.character(1970:1985) #Assign years for the reference period
 ```
 
 Read in catch data/Subset and average the catch data 
 
 ```{r}
+#Load observed catches: source NAFO data
 catches = readRDS("Ess_data/catches_nafo.RDS")
 catches<-catches[as.character("1970":"2010"),]
-#melt data for easy ggplot-ting
+
 #melt observed catch data
 
 yield_ts<-melt(cbind(Year=rownames(catches),catches))
@@ -56,13 +53,12 @@ names(yield_ts)<-c("Year","Species","Yield")
 yield_ts$Year<-as.numeric(yield_ts$Year)
 
 #set NAs in catch to zeroes to avoid inflating mean catches
-#yield_ts[which(is.na(yield_ts$Yield)),]
-
 yield_ts$Yield<-ifelse(is.na(yield_ts$Yield),0,yield_ts$Yield)
 
 ```
 Aggregate to mean observed yield between 1970 and 1985 
 ```{r}
+#Aggregate to mean observed catch 
 mean_catch_nafo <- subset(yield_ts, Year<=max(years_to_use))%>%
   group_by(Species)%>%
   summarise(yield_observed =mean(Yield,  na.rm = T))
@@ -77,8 +73,11 @@ convert from KG??? to grams (need to check with Alida Bundy to be sure)
 Restrict to the 9 species of interest
 Rename columns
 ```{r}
+#Read observed biomass: DFO (Bundy et al., 2017)
 biomass_obs = read.csv("Ess_data/biomass_RVsurvey_ts.csv")[,1:14]
+# covert to grams
 biomass_obs[,-1]<-biomass_obs[,-1]*1e3
+#reasign species names
 colnames(biomass_obs) <- gsub("\\.", " ", colnames(biomass_obs))
 fish_to_use = c("AMERICAN PLAICE", "COD(ATLANTIC)", "HERRING(ATLANTIC)","ATLANTIC HALIBUT","REDFISH UNSEPARATED", "TURBOT, GREENLAND HALIBUT", "HADDOCK","SANDLANCES", "SILVER HAKE", "SPINY DOGFISH",  "WHITE HAKE", "WITCH FLOUNDER", "YELLOWTAIL FLOUNDER")
 names(biomass_obs) = c("Year",fish_to_use)
@@ -87,6 +86,7 @@ biomass_obs[is.na(biomass_obs)] <- 0
 
 Aggregate to mean biomass between 1970 and 1985
 ```{r}
+#Aggregate observed biomass to mean biomass
 biomass_obs_sub = subset(biomass_obs, Year < 2011)
 biomass_ts<-melt(biomass_obs_sub,id.vars = 1)
 names(biomass_ts)<-c("Year","Species","Biomass")
@@ -102,14 +102,15 @@ mean_biomass_obs$biomass_observed<- ifelse(is.nan( mean_biomass_obs$biomass_obse
 Introduce catch and ssb into data
 minimum size in survey - assume 10 but check the DFO spreadsheet
 ```{r}
+#Assign obeserved biomas and catches to species
 external_species_info$biomass_observed <- mean_biomass_obs$biomass_observed
-
 external_species_info$yield_observed <- mean_catch_nafo$yield_observed
 ```
 
 
 Set up fishing gear parameters
 ```{r}
+#load gear and knife_edge_gear
 fishing_type = read.csv("Ess_data/Mat_knife_edge_gear_params2.csv")
 names(fishing_type)[1] = "species"
 gear_params <- fishing_type
@@ -121,7 +122,10 @@ Copy species life history parameters into the species parameters for the model
 ```{r}
 
 external_species_info<-select(external_species_info,c("species","w_max","w_mat", "w_min","beta" ,"sigma" ,"a","b","age_mat", "biomass_observed", "yield_observed"))
-       
+# Create a Mizer multispecies parameter object using species traits and gear settings.
+# - interaction = NULL: use default interaction matrix (intra = 1, inter = 0.2)
+# - kappa = 1e8: sets background resource carrying capacity
+# - gear_params: provides fishing gear selectivity and catchability
 params <- newMultispeciesParams(external_species_info,interaction = NULL, kappa = 1e8, gear_params = gear_params)
 
 ```
@@ -129,11 +133,18 @@ params <- newMultispeciesParams(external_species_info,interaction = NULL, kappa 
 Read the fishing history data/set fishing into params from NAFO
 set intial effort as mean_effort
 ```{r}
-fishing_history = readRDS("Ess_data/relative_interp_effort_nafo.RDS")
-effort<-fishing_history[as.character("1970":"2010"),]
+# Load time-varying fishing effort data (relative effort by gear or species)
+fishing_history <- readRDS("Ess_data/relative_interp_effort_nafo.RDS")
 
-mean_effort <- apply(effort[years_to_use, ], 2, mean, na.rm = T)
-# set initial effort to mean over first 15 years
+# Subset effort data for the years 1970 to 2010
+effort <- fishing_history[as.character("1970":"2010"), ]
+
+# Calculate the mean effort over selected years (defined in `years_to_use`)
+# This assumes `years_to_use` is a vector of years like 1970:1984
+mean_effort <- apply(effort[years_to_use, ], 2, mean, na.rm = TRUE)
+
+# Set initial fishing effort in the model to the average over the reference period
+# This ensures a steady-state calibration baseline
 initial_effort(params) <- unlist(mean_effort)
 
 ```
@@ -186,7 +197,7 @@ external_species_info[8,"w_mat"]<-external_species_info[8,"w_max"]*0.10
 Copy species life history parameters into the species parameters for the model
 ```{r}
 external_species_info<-select(external_species_info,c("species","w_max","w_mat", "w_min","beta" ,"sigma" ,"a","b","age_mat", "biomass_observed", "yield_observed","biomass_cutoff"))
-
+#reasign for spp 8
 external_species_info[8,"w_max"]<-154
 external_species_info[8,"w_mat"]<-15
 
@@ -207,6 +218,7 @@ gear_names <- gear_params$gear
 Read the fishing history data/set fishing into params from NAFO
 set intial effort as mean_effort
 ```{r}
+# load fishing effort : source NAFO
 fishing_history = readRDS("Ess_data/relative_interp_effort_nafo.RDS")
 effort<-fishing_history[as.character("1970":"2010"),]
 
@@ -235,7 +247,6 @@ inter[]<-0.5
 diag(inter)<-0.2
 
 #inter["COD(ATLANTIC)",c("HERRING(ATLANTIC)", "SANDLANCES")]<-1.0
-
 
 #  # Define guilds 
 
@@ -267,15 +278,22 @@ diag(inter)<-0.2
      inter[, "ATLANTIC HALIBUT"] <- 0.0  # only a few predators on large halibuts
      inter[c("COD(ATLANTIC)", "SPINY DOGFISH", "WHITE HAKE", "ATLANTIC HALIBUT","TURBOT, GREENLAND HALIBUT"), "ATLANTIC HALIBUT"] <- 0.5  # only a few predators on large halibuts
  
-
+#input interaction matrics to params
 params<-setInteraction(params,inter)
 
 ```
 
 Run params to steady state
 ```{r}
+# Plot initial model spectra (before running steady state)
+# `power = 2` rescales biomass densities to approximate weight-based biomass (biomass ~ N * w^2)
 plotSpectra(params, power = 2)
+
+# Run the model to steady state: iterates until no major change in biomass over time
 params <- steady(params)
+
+# Plot resulting spectra using Plotly (interactive)
+# Useful to check for unrealistic kinks or mismatches in species/resource structure
 plotlySpectra(params, power = 2)
 ```
 
@@ -298,21 +316,43 @@ plotlyFeedingLevel(params)
 
 Rescale Species Spectra, Rince and repeat (till convergence is achieved in 1.5 years)
 ```{r}
+# Iteratively improve the calibration by adjusting model parameters
+# to better match observed biomasses, and then re-solving for steady state
 for (i in 1:20) {
-  params <- params  |> matchBiomasses() |> steady()
+  params <- params |> 
+    matchBiomasses() |>  # Adjust species parameters to better match observed biomasses
+    steady()             # Recalculate the steady-state solution
 }
 ```
 
 could use to the below plot instead to check ratio is within +/- 1.2 model biomass/observed biomass for all species (I stopped when Total Relative Error was 0.385)
 ```{r}
-plotBiomassObservedVsModel(params,ratio=T,labels=F)
-plotYieldObservedVsModel(params,ratio=T,labels=F)
+# Plot comparison of model-predicted vs observed biomass
+# - ratio = TRUE: plots the ratio (model / observed), ideal value is 1
+# - labels = FALSE: do not display species names on the plot
+plotBiomassObservedVsModel(params, ratio = TRUE, labels = FALSE)
+
+# Plot comparison of model-predicted vs observed yield (catch)
+# - ratio = TRUE: shows how well the model predicts catch relative to observed data
+# - labels = FALSE: cleaner plot without species labels
+plotYieldObservedVsModel(params, ratio = TRUE, labels = FALSE)
+
+# Plot interactive feeding level by size for each species
+# Shows how close species are to satiation (values near 1 = full, <0.2 = hungry)
+# Useful to check realism of trophic dynamics and possible starvation
 plotlyFeedingLevel(params)
 ```         
 
 View Spectra
 ```{r}
+# Plot the model spectra (biomass across size classes for all species and resource)
+# - power = 2: scales the abundance spectrum to biomass (N(w) * w^2)
+# Useful to assess size structure and whether any species dominate unrealistically
 plotSpectra(params, power = 2)
+
+# Plot model-predicted vs observed biomass (log-log scale by default)
+# - ratio = FALSE (default): shows raw predicted vs observed biomass for each species
+# Ideal results lie close to the 1:1 diagonal line
 plotBiomassObservedVsModel(params)
 ```
 
@@ -371,12 +411,9 @@ params<-matchBiomasses(params,species=c())
 params<-steady(params)
 }
 
-
-
 # # check calibration plots again
 plotYieldObservedVsModel(params, ratio = T,labels = F)
 plotBiomassObservedVsModel(params,labels = F)
-
 
 ```
  - need to  check Fvsyield curves(and other plots)
@@ -440,20 +477,44 @@ Check YieldvsF plots for each species, ensuring dome shaped and ideally a peak y
 
 ## Diagnostics: Now check steady state, again
 ```{r}
-sim <- steady(params,return_sim = T,t_max=100)
+# Run the model to steady state and return the full simulation object
+# - return_sim = TRUE: keeps the time series data (vs. just returning final params)
+# - t_max = 100: allows up to 100 time steps to reach convergence
+sim <- steady(params, return_sim = TRUE, t_max = 100)
+# Quick plot of total biomass and yields over time (main summary)
 plot(sim)
 
 # Check Diagnostic plots
+# Plot species biomass over time
+# Useful to check if species stabilize or fluctuate at steady state
 plotBiomass(sim)
-plotSpectra(sim)
-plotDiet(params)
-plotGrowthCurves(params, species_panel = T, max_age = 20)
-plotYieldObservedVsModel(params, ratio = T)
-plotBiomassObservedVsModel(params, ratio = T)
-plotFeedingLevel(params)
 
+# Plot spectra (biomass by size) from the final state
+# Reveals trophic structure and size-based energy flow
+plotSpectra(sim)
+
+# Plot species diet composition by size
+# Shows who eats whom across size classes
+plotDiet(params)
+
+# Plot growth curves for each species
+# - species_panel = TRUE: shows separate panels per species
+# - max_age = 20: restricts plots to ages up to 20
+plotGrowthCurves(params, species_panel = TRUE, max_age = 20)
+
+# Compare model vs observed yield (catch)
+# - ratio = TRUE: visualizes model/observed ratio; ideal = 1
+plotYieldObservedVsModel(params, ratio = TRUE)
+
+# Compare model vs observed biomass
+# - ratio = TRUE: visualizes model/observed ratio; ideal = 1
+plotBiomassObservedVsModel(params, ratio = TRUE)
+
+# Plot feeding level by size
+# Reveals how full each species is at each size (0 = starving, 1 = satiated)
+plotFeedingLevel(params)
 ```
-#Growth curves for supplements
+# Examining Growth curves for supplements
 ```{r}
 custom_labels <- c(
   "COD(ATLANTIC)" = "ATLANTIC COD",
@@ -783,9 +844,6 @@ ggsave(filename = paste0(save_dir, "Calibration_plot.jpeg"), plot = Calibration_
        dpi = 400)
 
 Calibration_plot
-Calibration_plot_yield
-Calibration_plot_Y
-Calibration_plot_B
 ```
 
  
@@ -813,7 +871,6 @@ saveRDS(effort,"Ess_data/effort_matrix.RDS")
 Setting up time series dynamical focusing and scenarios
 
 Plots of effort forcing through time (*need to add seals as a dashed line, for supplement)
-
 ```{r}
 fishing_history <- readRDS("Ess_data/effort_with_seal_matrix.RDS")
 effort_df <- as.data.frame(fishing_history)
@@ -824,30 +881,17 @@ effort_df<-fishing_history[as.character("1970":"2010"),]
 effort_df <- as.data.frame(fishing_history) %>%
 
   rename(
-
     "ATLANTIC COD" = "COD(ATLANTIC)",
-
     "GREENLAND HALIBUT" = "TURBOT, GREENLAND HALIBUT",
-
-    "ATLANTIC HERRING" = "HERRING(ATLANTIC)"
-
-  )
+    "ATLANTIC HERRING" = "HERRING(ATLANTIC)")
 
 # Add a Year column (assuming row names are years)
 
 effort_df$Year <- as.numeric(rownames(effort_df))
 
- 
-
 # Reshape the data from wide to long format
 
-effort_long <- pivot_longer(effort_df,
-
-                            cols = -Year,
-
-                            names_to = "Species",
-
-                            values_to = "Effort")
+effort_long <- pivot_longer(effort_df,cols = -Year,names_to = "Species",values_to = "Effort")
 
  
 
@@ -856,56 +900,31 @@ effort_long <- pivot_longer(effort_df,
 Fishing_effort_plot = ggplot(effort_long, aes(x = Year, y = Effort)) +
 
   geom_line() +
-
   facet_wrap(~Species, nrow = 4) +  # 5 panels per row
-
   theme_minimal() +
-
   labs(x = "Year", y = "Fishing Effort") +
-
   theme(strip.text = element_text(size = 10, face = "bold"))+
-
   theme(
-
     panel.grid = element_blank(),
-
     panel.background = element_blank(),
-
     legend.position = "right",
-
     legend.direction = "vertical",
-
     legend.spacing.x = unit(0.01, "cm"),
-
     legend.title = element_blank(),
-
     legend.text = element_text(size = 9, face = "bold"),
-
     axis.text = element_text(size = 9, face = "bold"),
-
     axis.title.x = element_text(size = 9, face = "bold"),
-
     axis.title.y = element_text(size = 9, face = "bold"),
-
     plot.margin = margin(b = 1, unit = "lines"),
-
     panel.border = element_rect(color = "black", fill = NA, size = 0.5),
-
     strip.background = element_blank(),
-
     strip.text = element_text(size = 9, face = "bold"),
-
     legend.box.background = element_blank()
-
   ) +
-
   scale_linetype_manual(values = "dotted", name = "")
 
 ggsave(filename = paste0(save_dir, "Fishing_effort_plot.jpeg"), plot = Fishing_effort_plot,
-       width = 9,
-       height = 9,
-       units = "in",
-       dpi = 400)
+       width = 9,height = 9,units = "in",dpi = 400)
 ```
 
 
@@ -963,8 +982,8 @@ ggplot(filter(yield_sim_base,Species!="SANDLANCES"),aes(x = Year, y = Yield, gro
 ```
 
 
-Test with Additional mortality on Cod
-Introduction of New gears (seal)
+Test with Additional predation mortality on all spp
+Introduction of New gears (named: seal)
 params now include additional gear
 Seal diet roughly parameterised from info:
 https://waves-vagues.dfo-mpo.gc.ca/library-bibliotheque/41217913.pdf
@@ -999,7 +1018,7 @@ gear_params(params_with_seal)["ATLANTIC HALIBUT, Seals","catchability"]<-0.1
 gear_params(params_with_seal)["TURBOT, GREENLAND HALIBUT, Seals","catchability"]<-0.1
 gear_params(params_with_seal)["SPINY DOGFISH, Seals","catchability"]<-0.1
 
-#save object for later use
+#save object for later use ( params with additional predation mortality)
 saveRDS(params_with_seal,"Ess_data/params_with_seal_interaction.RDS")
 ```
 
@@ -1027,279 +1046,26 @@ saveRDS(effort_with_seal,"Ess_data/effort_with_seal_matrix.RDS")
 
 run the model with changing fishing through time where sim2 is the new params for additional mortality
 ```{r}
+# Run the model to a dynamic equilibrium with seal predation included
+# - effort = initial_effort(params_with_seal): hold effort constant during spin-up
+# - t_max = 500: long spin-up period to allow system to stabilize under new predation structure
 params_spin2<-projectToSteady(params_with_seal,effort=initial_effort(params_with_seal),t_max=500)
+# Project the model forward using a full time series of effort (1970–2010, etc.)
+# - effort_with_seal: should be a time-varying effort matrix/data.frame
 sim2<- project(params_spin2, effort = effort_with_seal)
+# Plot total biomass and yield time series (summary plot)
 plot(sim2)
+
+# Plot species biomass over time
 plotBiomass(sim2)
+# Plot size spectra at the end of simulation
 plotSpectra(sim2)
+# Plot species diet composition by predator and size class
+# Helps verify seal predation and diet shifts
 plotDiet(params_with_seal)
-plotGrowthCurves(params_with_seal, species_panel = T, max_age = 50)
-plotGrowthCurves(params_with_seal, species_panel = T, max_age = 50)
-#saveRDS(params_with_seal,"Ess_data/params_with_seal_interactions.RDS")
-```
-
-Get modelled biomass, excluding sizes < 10 g to be consistent with the survey biomasses
-```{r}
-#biomass_sim_opt is the extracted biomass from sim2
-biomass_sim_opt<-getBiomass(sim2,min_w=10)
-biomass_sim_opt<-melt(biomass_sim_opt,id.vars=1)
-names(biomass_sim_opt)<-c("Year", "Species","Biomass")
-   ggplot(biomass_sim_opt,aes(x = Year, y = Biomass, group = Species))+
-    geom_line(data=biomass_sim_opt,aes(colour = Species)) +
-    facet_wrap(~Species,scales="free_y") +
-  geom_point(data=filter(biomass_ts),aes(x = Year, y = (Biomass), colour = Species),size=0.5)+
-    #geom_point(data= biomass_ts,Year<1986,aes(colour = Species), size=1) +
-    theme(legend.title = element_text( size=3), legend.text=element_text(size=3))+
-    scale_colour_manual(values=params@linecolour)
-```
-
-
-Make plots  for Yield (sim2)
-```{r}
-yield_sim_opt<- plotYieldGear(sim2, return_data = T) 
-yield_sim_opt<-subset(yield_sim_opt,Gear!="Seals")
-
-ggplot(yield_sim_opt, aes(x = Year, y = Yield, group = Species)) +
-  geom_line(aes(colour = Species)) +
-  geom_point(data = filter(yield_ts), aes(x = Year, y = Yield, colour = Species), size = 0.5) +
-  facet_wrap(~Species, scales = "free_y") +
-  theme(legend.title = element_text(size = 3), legend.text = element_text(size = 3)) +
-  scale_colour_manual(values = params@linecolour)
-
-```
-
- 
-Combine Data from yield_sim_base and yield_sim_opt & biomass_sim_base and biomass_sim_opt
-```{r}
-
-#Exclude Sandlances from observed yield, as. they are not fished in model.
-yield_ts <- filter(yield_ts,Species!="SANDLANCES")
-
-# Add Yield columns from yield_sim_base and yield_sim_opt to yield_ts
-yield_sim_base <- yield_sim_base |>  select(Year,Species,Yield) |> rename(Yield_base=Yield) # JB corrected  
-yield_sim_opt <- yield_sim_opt |> select(Year,Species,Yield)|> rename(Yield_opt=Yield)
-
-yield_extract <- yield_ts %>%
-  left_join(yield_sim_base,by = c("Year", "Species")) |>
-  left_join(yield_sim_opt, by = c("Year", "Species"))
-
-# Add Biomass columns from biomass_sim_base and biomass_sim_opt to biomass_ts
-
-biomass_sim_base<-biomass_sim_base|> rename(Biomass_base = Biomass)
-biomass_sim_opt<-biomass_sim_opt|> rename(Biomass_opt = Biomass)
-
-
-biomass_extract <- biomass_ts |>
-left_join(biomass_sim_base, by = c("Year", "Species")) |> left_join(biomass_sim_opt, by = c("Year", "Species"))
-
-write.csv(biomass_sim_base, file = "Ess_data/biomass_sim_base.csv", row.names = FALSE)
-write.csv(biomass_sim_opt, file = "Ess_data/biomass_sim_opt.csv", row.names = FALSE)
-write.csv(yield_sim_base, file = "Ess_data/yield_sim_base.csv", row.names = FALSE)
-write.csv(yield_sim_opt, file = "Ess_data/yield_sim_opt.csv", row.names = FALSE)
-```
-
-
-# Make plots of Yield from sim 2 (removing sandlances. and renaming some species)
-```{r}
-# yield_extract <- yield_extract |>
-#   mutate(Species = as.factor(Species))|>
-#   mutate(Species = fct_recode(Species, `GREENLAND HALIBUT` = "TURBOT, GREENLAND HALIBUT"))|>
-#   mutate(Species = as.factor(Species)) |> # Convert to factor
-#   mutate(Species = fct_recode(Species, `ATLANTIC COD` = "COD(ATLANTIC)")) |>filter(Species != "SANDLANCES")|>  # Convert to factor
-#  mutate(Species = fct_recode(Species, `ATLANTIC HERRING` = "HERRING(ATLANTIC)"))
-```
-
-
-
-Yield Plot to compare fishing and additional mortality plots
-```{r}
-yield_extract1 <- yield_extract
-# yield_extract1$Yield <- log(yield_extract1$Yield)
-# yield_extract1$Yield_base <- log(yield_extract1$Yield_base)
-# yield_extract1$Yield_opt <- log(yield_extract1$Yield_opt)
-# yield_extract1[] <- lapply(yield_extract1, function(x) {
-#   if(is.numeric(x)) {
-#     x[is.infinite(x)] <- 0
-#   }
-#   return(x)
-# })
-
-yield_plot <- yield_extract1 %>%
-  ggplot(aes(x = Year)) +
-  geom_rect(aes(xmin = -Inf, xmax = 1985, ymin = -Inf, ymax = Inf), 
-            fill = "lightgrey", alpha = 0.01) +
-  geom_point(data = subset(yield_extract1, Year >= 1985),
-             aes(y = Yield, color = "black"), size = 0.005) +
-  geom_point(data = subset(yield_extract1, Year <= 1985),
-             aes(y = Yield, color = "black"), size = 0.005) +
-  geom_line(data = subset(yield_extract1, Year <= 1985), 
-            aes(y = Yield_base), color = "darkgrey", size = 0.5) +
-  geom_line(data = subset(yield_extract1, Year >= 1985), 
-            aes(y = Yield_base, color = "red"), size = 0.5) +
-  geom_line(data = subset(yield_extract1, Year < 1985), 
-            aes(y = Yield_opt), color = "darkgrey", size = 0.5) +
-  geom_line(data = subset(yield_extract1, Year >= 1985), 
-            aes(y = Yield_opt, color = "blue"), size = 0.5, linetype = "solid", alpha = 1) +
-  facet_wrap(~Species, ncol = 3, labeller = label_bquote(rows = .(Species)), 
-             scales = "free_y", drop = TRUE) +
-  # Added consistent text positioning with conditional label for the first three species
-  geom_text(data = yield_extract1 %>% 
-              group_by(Species) %>% 
-              summarise(
-                y_max = max(c(Yield, Yield_base, Yield_opt), na.rm = TRUE),
-                y_min = min(c(Yield, Yield_base, Yield_opt), na.rm = TRUE),
-                y_range = y_max - y_min,
-                label_y = y_max + 0.05 * y_range
-              ) %>%
-              filter(Species %in% head(unique(Species), 3)),  # Label only for the first 3 species
-            aes(x = 1985, y = label_y, label = "Calibration period"),
-            vjust = 0.5, hjust = 1.02, size = 3, fontface = "bold") +
-  geom_text(data = yield_extract1 %>% 
-              group_by(Species) %>% 
-              summarise(
-                y_max = max(c(Yield, Yield_base, Yield_opt), na.rm = TRUE),
-                y_min = min(c(Yield, Yield_base, Yield_opt), na.rm = TRUE),
-                y_range = y_max - y_min,
-                label_y = y_max + 0.05 * y_range
-              ) %>%
-              filter(Species %in% head(unique(Species), 3)),  # Label only for the first 3 species
-            aes(x = 1985, y = label_y, label = "Post-calibration period"),
-            vjust = 0.5, hjust = -0.2, size = 3, fontface = "bold") +
-  labs(y = "Catch (mt)") +
-  scale_color_manual(values = c("black", "blue", "red"),
-                     name = "",
-                     labels = c("Observed Yield", 
-                                "With Additional Mortality",
-                                "Without Additional Mortality")) +
-  scale_x_continuous(breaks = seq(1970, max(yield_extract1$Year), by = 10)) +
-  theme_minimal() +
-  geom_vline(aes(xintercept = 1985), linetype = "dashed", size = 0.3) +
-  theme(
-    panel.grid = element_blank(),
-    panel.background = element_blank(),
-    legend.position = "right",
-    legend.direction = "vertical",
-    legend.spacing.x = unit(0.01, "cm"),
-    legend.title = element_blank(),
-    legend.text = element_text(size = 11, face = "bold"),
-    axis.text = element_text(size = 11, face = "bold"),
-    axis.title.x = element_text(size = 11, face = "bold"),
-    axis.title.y = element_text(size = 11, face = "bold"),
-    plot.margin = margin(b = 1, unit = "lines"),
-    panel.border = element_rect(color = "black", fill = NA, size = 0.5),
-    strip.background = element_blank(),
-    strip.text = element_text(size = 11, face = "bold"),
-    legend.box.background = element_blank()
-  ) +
-  scale_linetype_manual(values = "dotted", name = "")
-
-# Print the plot
-print(yield_plot)
-
-
-ggsave(filename = paste0(save_dir, "yield_plot.jpeg"), plot = yield_plot, width = 13, height = 9, units = "in", dpi = 300)
-yield_plot
-```
-
-
-
-BIOMASS PLOT Prep (renaming some species)
-```{r}
-biomass_extract <- biomass_extract |>
-  mutate(Species = as.factor(Species))|>
-  mutate(Species = fct_recode(Species, `GREENLAND HALIBUT` = "TURBOT, GREENLAND HALIBUT"))|>
-  mutate(Species = as.factor(Species)) |> # Convert to factor
-  mutate(Species = fct_recode(Species, `ATLANTIC COD` = "COD(ATLANTIC)"))|>  # Convert to factor
- mutate(Species = fct_recode(Species, `ATLANTIC HERRING` = "HERRING(ATLANTIC)"))
-
-```
-
-
-Biomass Plot to compare fishing and additional mortality plots
-```{r}
-biomass_extract1 <- biomass_extract
-# biomass_extract1$Biomass <- log(biomass_extract1$Biomass)
-# biomass_extract1$Biomass_base <- log(biomass_extract1$Biomass_base)
-# biomass_extract1$Biomass_opt <- log(biomass_extract1$Biomass_opt)
-# biomass_extract1[] <- lapply(biomass_extract1, function(x) {
-#   if(is.numeric(x)) {
-#     x[is.infinite(x)] <- 0
-#   }
-#   return(x)
-# })
-biomass_plot <- biomass_extract1 %>%
-  ggplot(aes(x = Year)) +
-  geom_rect(aes(xmin = -Inf, xmax = 1985, ymin = -Inf, ymax = Inf), 
-            fill = "lightgrey", alpha = 0.01) +
-  geom_point(data = subset(biomass_extract1, Year >= 1985),
-             aes(y = Biomass, color = "black"), size = 0.005) +
-  geom_point(data = subset(biomass_extract1, Year <= 1985),
-             aes(y = Biomass, color = "black"), size = 0.005) +
-  geom_line(data = subset(biomass_extract1, Year <= 1985), 
-            aes(y = Biomass_base), color = "darkgrey", size = 0.5) +
-  geom_line(data = subset(biomass_extract1, Year >= 1985), 
-            aes(y = Biomass_base, color = "red"), size = 0.5) +
-  geom_line(data = subset(biomass_extract1, Year < 1985), 
-            aes(y = Biomass_opt), color = "darkgrey", size = 0.5) +
-  geom_line(data = subset(biomass_extract1, Year >= 1985), 
-            aes(y = Biomass_opt, color = "blue"), size = 0.5, linetype = "solid", alpha = 1) +
-  facet_wrap(~Species, ncol = 3, labeller = label_bquote(rows = .(Species)), 
-             scales = "free_y", drop = TRUE) +
-  # Added consistent text positioning with conditional label for the first three species
-  geom_text(data = biomass_extract1 %>% 
-              group_by(Species) %>% 
-              summarise(
-                y_max = max(c(Biomass, Biomass_base, Biomass_opt), na.rm = TRUE),
-                y_min = min(c(Biomass, Biomass_base, Biomass_opt), na.rm = TRUE),
-                y_range = y_max - y_min,
-                label_y = y_max + 0.05 * y_range
-              ) %>%
-              filter(Species %in% head(unique(Species), 3)),  # Label only for the first 3 species
-            aes(x = 1985, y = label_y, label = "Calibration period"),
-            vjust = 0.5, hjust = 1.02, size = 3, fontface = "bold") +
-  geom_text(data = biomass_extract1 %>% 
-              group_by(Species) %>% 
-              summarise(
-                y_max = max(c(Biomass, Biomass_base, Biomass_opt), na.rm = TRUE),
-                y_min = min(c(Biomass, Biomass_base, Biomass_opt), na.rm = TRUE),
-                y_range = y_max - y_min,
-                label_y = y_max + 0.05 * y_range
-              ) %>%
-              filter(Species %in% head(unique(Species), 3)),  # Label only for the first 3 species
-            aes(x = 1985, y = label_y, label = "Post-calibration period"),
-            vjust = 0.5, hjust = -0.2, size = 3, fontface = "bold") +
-  labs(y = "Biomasss (mt)") +
-  scale_color_manual(values = c("black", "blue", "red"),
-                     name = "",
-                     labels = c("Observed Biomass", 
-                                "With Additional Mortality",
-                                "Without Additional Mortality")) +
-  scale_x_continuous(breaks = seq(1970, max(biomass_extract1$Year), by = 10)) +
-  theme_minimal() +
-  geom_vline(aes(xintercept = 1985), linetype = "dashed", size = 0.3) +
-  theme(
-    panel.grid = element_blank(),
-    panel.background = element_blank(),
-    legend.position = "right",
-    legend.direction = "vertical",
-    legend.spacing.x = unit(0.01, "cm"),
-    legend.title = element_blank(),
-    legend.text = element_text(size = 11, face = "bold"),
-    axis.text = element_text(size = 11, face = "bold"),
-    axis.title.x = element_text(size = 11, face = "bold"),
-    axis.title.y = element_text(size = 11, face = "bold"),
-    plot.margin = margin(b = 1, unit = "lines"),
-    panel.border = element_rect(color = "black", fill = NA, size = 0.5),
-    strip.background = element_blank(),
-    strip.text = element_text(size = 11, face = "bold"),
-    legend.box.background = element_blank()
-  ) +
-  scale_linetype_manual(values = "dotted", name = "")
-
-# Print the plot
-print(biomass_plot)
-
-#ggsave(filename = paste0(save_dir, "biomass_plot.jpeg"), plot = biomass_plot, width = 13, height = 9, units = "in", dpi = 300)
+# Plot growth curves under new conditions (with seal predation)
+# - Species are plotted in separate panels
+plotGrowthCurves(params_with_seal, species_panel = TRUE, max_age = 50)
 
 ```
 
