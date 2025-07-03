@@ -576,7 +576,7 @@ ggsave(filename = paste0(save_dir, "diet_interaction.jpeg"), plot = diet_interac
        width = 11, height = 8.5, units = "in",dpi = 400)
 diet_interaction
 # with resource
-diet<-data.frame(melt(apply(getDiet(params)[,which(params@w>10),], c(1,3),sum)/rowSums(apply(getDiet(params)[,which(params@w>10),], c(1,3),sum)[,])))
+diet <- data.frame(melt(apply(getDiet(params)[,which(params@w>10),], c(1,3),sum)/rowSums(apply(getDiet(params)[,which(params@w>10),], c(1,3),sum)[,])))
 
 ggplot(diet,aes(fill = prey, x = predator, y = value)) + 
     geom_bar(position = "stack", stat = "identity") + coord_flip()
@@ -1043,36 +1043,15 @@ effort_with_seal <- as.matrix(effort_with_seal)
 saveRDS(effort_with_seal,"Ess_data/effort_with_seal_matrix.RDS")
 ```
 
-
-run the model with changing fishing through time where sim2 is the new params for additional mortality
-```{r}
-# Run the model to a dynamic equilibrium with seal predation included
-# - effort = initial_effort(params_with_seal): hold effort constant during spin-up
-# - t_max = 500: long spin-up period to allow system to stabilize under new predation structure
-params_spin2<-projectToSteady(params_with_seal,effort=initial_effort(params_with_seal),t_max=500)
-# Project the model forward using a full time series of effort (1970–2010, etc.)
-# - effort_with_seal: should be a time-varying effort matrix/data.frame
-sim2<- project(params_spin2, effort = effort_with_seal)
-# Plot total biomass and yield time series (summary plot)
-plot(sim2)
-
-# Plot species biomass over time
-plotBiomass(sim2)
-# Plot size spectra at the end of simulation
-plotSpectra(sim2)
-# Plot species diet composition by predator and size class
-# Helps verify seal predation and diet shifts
-plotDiet(params_with_seal)
-# Plot growth curves under new conditions (with seal predation)
-# - Species are plotted in separate panels
-plotGrowthCurves(params_with_seal, species_panel = TRUE, max_age = 50)
-
-```
-
 Plot Seal "catches=consumption"
 ```{r}
 plotYieldGear(sim2,gears=c("Seals")) 
 ```
+
+
+
+
+
 
 
 
