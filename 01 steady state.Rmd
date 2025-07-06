@@ -26,7 +26,7 @@ Set up directories
 ```{r setup, include=FALSE}
 library("here")
 dir <- setwd(here())
-knitr::opts_knit$set(root.dir = "~/Mac/Dropbox/Desktop/Eastern Scotian Shelf Model/")
+knitr::opts_knit$set(root.dir = "~/Mac/Dropbox/Desktop/Eastern Scotian Shelf Model_/")
 # Define the save directory
 save_dir <- paste0(here(), "/Ess_Output/")
 ```
