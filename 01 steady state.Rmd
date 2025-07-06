@@ -701,7 +701,7 @@ theme_bw() +
     geom_hline(yintercept = 0, color = "black", size = 0.1) +
   annotate("text", x = Inf, y = Inf, label = expression(bold("(a)")),
          parse = TRUE, size = 3, hjust = 21, vjust = 2.1) +
-  annotate("text", x = Inf, y = Inf, label = expression(bold("R = 0.923")),
+  annotate("text", x = Inf, y = Inf, label = expression(bold("r = 0.993")),
         parse = TRUE, size = 3, hjust = 1.1, vjust = 27.1)
 
 Calibration_plot_yield
@@ -730,7 +730,7 @@ Calibration_plot_biomass <- plotBiomassObservedVsModel(params, ratio = FALSE, la
     geom_hline(yintercept = 0, color = "black", size = 0.1)+
     annotate("text", x = Inf, y = Inf, label = expression(bold("(b)")),
          parse = TRUE, size = 3, hjust = 20.5, vjust = 2.3) +
-    annotate("text", x = Inf, y = Inf, label = expression(bold("R = 1.0")),
+    annotate("text", x = Inf, y = Inf, label = expression(bold("r = 1.0")),
          parse = TRUE, size = 3, hjust = 1.3, vjust = 27.1)
 # Display the plot
 
@@ -748,7 +748,7 @@ Plot Observed vs model error calibration period
 
 Calibration_pb_yield <- plotYieldObservedVsModel(params, ratio = FALSE,labels = F, return_data = TRUE)
 
-pb_yield = mean(Calibration_pb_yield$ratio)
+pb_yield = mean(1-Calibration_pb_yield$ratio)
 
 Calibration_pb_yield$species <- fct_recode(Calibration_pb_yield$species,
 
@@ -783,10 +783,7 @@ Calibration_plot_Y <- ggplot(Calibration_pb_yield, aes(x = species, y = 1 - rati
   ) +
   geom_hline(yintercept = 0, color = "black", size = 0.1) +
   annotate("text", x = Inf, y = Inf, label = expression(bold("(c)")),
-           parse = TRUE, size = 3, hjust = 21.5, vjust = 2.1) +
-  annotate("text", x = Inf, y = min(Calibration_pb_yield$ratio),
-           label = expression(bold("pb = -0.420")), parse = TRUE,
-           size = 3, hjust = 1.1, vjust = 1.1)
+           parse = TRUE, size = 3, hjust = 21.5, vjust = 2.1)
 
 Calibration_pb_biomass <- plotBiomassObservedVsModel(params, ratio = FALSE, labels = F, return_data = TRUE)
 
@@ -822,13 +819,11 @@ Calibration_plot_B <- ggplot(Calibration_pb_biomass, aes(x = species, y = 1 - ra
     aspect.ratio = 0.8
   ) +
   geom_hline(yintercept = 0, color = "black", size = 0.1) +
-  annotate("text", x = length(unique(Calibration_pb_biomass$species)) + 0.5, y = max(1 - Calibration_pb_biomass$ratio) ,
+  annotate("text", 
+           x = length(unique(Calibration_pb_biomass$species)) + 0.5, 
+           y = max(1 - Calibration_pb_biomass$ratio),
            label = expression(bold("(d)")),
-               parse = TRUE, size = 3, hjust = 20.5,, vjust = 1.8) +
-  annotate("text", x = length(unique(Calibration_pb_biomass$species)) + 0.5, y = min(1 - Calibration_pb_biomass$ratio),
-           label = expression(bold("pb = -0.003")), parse = TRUE,
-           size = 3, hjust = 1.2,vjust = -19.1)
-
+           parse = TRUE, size = 3, hjust = 20.5, vjust = 1.1)
 Calibration_plot_B
 
 
@@ -866,14 +861,12 @@ save effort forcing matrix object for later use
 saveRDS(effort,"Ess_data/effort_matrix.RDS")
 ```
 
-
-
 Setting up time series dynamical focusing and scenarios
 
 Plots of effort forcing through time (*need to add seals as a dashed line, for supplement)
 ```{r}
-fishing_history <- readRDS("Ess_data/effort_with_seal_matrix.RDS")
-effort_df <- as.data.frame(fishing_history)
+# fishing_history <- readRDS("Ess_data/effort_with_seal_matrix.RDS")
+# effort_df <- as.data.frame(fishing_history)
 
 fishing_history = readRDS("Ess_data/relative_interp_effort_nafo.RDS")
 effort_df<-fishing_history[as.character("1970":"2010"),]
@@ -902,7 +895,7 @@ Fishing_effort_plot = ggplot(effort_long, aes(x = Year, y = Effort)) +
   geom_line() +
   facet_wrap(~Species, nrow = 4) +  # 5 panels per row
   theme_minimal() +
-  labs(x = "Year", y = "Fishing Effort") +
+  labs(x = "Year", y = "Relative Fishing Effort") +
   theme(strip.text = element_text(size = 10, face = "bold"))+
   theme(
     panel.grid = element_blank(),
@@ -1045,8 +1038,6 @@ saveRDS(effort_with_seal,"Ess_data/effort_with_seal_matrix.RDS")
 
 Plot Seal "catches=consumption"
 ```{r}
-
-
 plotYieldGear(sim2,gears=c("Seals")) 
 ```
 
