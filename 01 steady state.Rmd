@@ -5,7 +5,6 @@ date: "2023-04-17"
 output: html_document
 ---
 Running Eastern Scotian Model to steady State
-
 Load Libraries first
 ```{r}
 library(mizer)
