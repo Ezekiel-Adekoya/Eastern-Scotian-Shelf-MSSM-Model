@@ -1045,6 +1045,8 @@ saveRDS(effort_with_seal,"Ess_data/effort_with_seal_matrix.RDS")
 
 Plot Seal "catches=consumption"
 ```{r}
+
+
 plotYieldGear(sim2,gears=c("Seals")) 
 ```
 
