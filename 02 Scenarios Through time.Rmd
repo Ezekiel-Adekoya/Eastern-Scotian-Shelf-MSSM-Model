@@ -514,10 +514,8 @@ ggsave(
   plot = trophic_cascades_plot,
   width = 11, height = 7.5, units = "in", dpi = 400
 )
-
 # Print the plot to the output
 trophic_cascades_plot
-
 ```
 
 # Size distribution of seal "diets"
