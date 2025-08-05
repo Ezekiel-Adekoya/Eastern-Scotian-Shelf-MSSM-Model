@@ -328,15 +328,13 @@ mw_sim1 <- sim1 %>%
   select(Year, Species, sim_mean, Mean_weight) %>%
   rename(
     MeanWeight = sim_mean,
-    MeanWeight_Obs = Mean_weight
-  )
+    MeanWeight_Obs = Mean_weight)
 
 mw_sim2 <- sim2 %>%
   select(Year, Species, sim_mean, Mean_weight) %>%
   rename(
     MeanWeight = sim_mean,
-    MeanWeight_Obs = Mean_weight
-  )
+    MeanWeight_Obs = Mean_weight)
 
 # Prepare species name map
 species_name_map <- c(
@@ -451,6 +449,9 @@ cor_plot <- ggplot(cor_results_long, aes(x = Variable, y = value, fill = scen)) 
 cor_plot
  ggsave(filename = paste0(save_dir, "cor_plot.jpeg"), plot = cor_plot,width = 11, height = 7.5, units = "in",dpi = 400)
 ```
+
+
+
 Comparison of Model Skill Metrics across Model Scenarios
 ```{r}
 # Load necessary library
