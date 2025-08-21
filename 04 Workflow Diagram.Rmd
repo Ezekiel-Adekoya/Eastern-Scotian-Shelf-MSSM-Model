@@ -102,7 +102,7 @@ p <- grViz("digraph workflow {
   Step_5 [label = <<table border='0' cellborder='1' cellspacing='0' cellpadding='8'>
     <tr><td bgcolor='lightgray'><b>Step 5: Dynamical Top-Down Forcing Scenarios</b></td></tr>
     <tr><td bgcolor='white'>
-      • Scenario 1: Fishing mortality time series (1970–2010)<br/>
+      • Scenario 1: Fishing effort time series (1970–2010)<br/>
       • Scenario 2: Additional hypothesized predation mortality (1986–2010)
     </td></tr>
   </table>>, pos = '0,-4!']
@@ -172,6 +172,9 @@ rsvg_png(charToRaw(svg_code), file = "Ess_Output/workflow.png")
 ```
   
 
+```{r}
+
+```
 
   
   

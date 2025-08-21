@@ -688,8 +688,8 @@ theme_bw() +
         plot.title = element_text(size = 10, face = "bold", hjust = 0.5),  # Centering the title
         axis.text.x = element_text(angle = 90, hjust = 1, vjust = 1, size = 8, face = "bold"),
         axis.text.y = element_text(size = 8, face = "bold"),  # Y-axis labels size 8
-        axis.title.x = element_text(size = 8, face = "bold"),  # X-axis title size 8
-        axis.title.y = element_text(size = 8, face = "bold"),  # Y-axis title size 8
+        axis.title.x = element_text(size = 10, face = "bold"),  # X-axis title size 8
+        axis.title.y = element_text(size = 10, face = "bold"),  # Y-axis title size 8
         panel.grid.major.x = element_blank(),
         panel.grid.major.y = element_blank(),
         panel.grid.minor = element_blank(),
@@ -701,7 +701,7 @@ theme_bw() +
     geom_hline(yintercept = 0, color = "black", size = 0.1) +
   annotate("text", x = Inf, y = Inf, label = expression(bold("(a)")),
          parse = TRUE, size = 3, hjust = 21, vjust = 2.1) +
-  annotate("text", x = Inf, y = Inf, label = expression(bold("r = 0.993")),
+  annotate("text", x = Inf, y = Inf, label = expression(bold("r = 0.99")),
         parse = TRUE, size = 3, hjust = 1.1, vjust = 27.1)
 
 Calibration_plot_yield
@@ -717,8 +717,8 @@ Calibration_plot_biomass <- plotBiomassObservedVsModel(params, ratio = FALSE, la
         plot.title = element_text(size = 10, face = "bold", hjust = 0.5),  # Centering the title
         axis.text.x = element_text(angle = 90, hjust = 1, vjust = 1, size = 8, face = "bold"),
         axis.text.y = element_text(size = 8, face = "bold"),  # Y-axis labels size 8
-        axis.title.x = element_text(size = 8, face = "bold"),  # X-axis title size 8
-        axis.title.y = element_text(size = 8, face = "bold"),  # Y-axis title size 8
+        axis.title.x = element_text(size = 10, face = "bold"),  # X-axis title size 8
+        axis.title.y = element_text(size = 10, face = "bold"),  # Y-axis title size 8
         panel.grid.major.x = element_blank(),
         panel.grid.major.y = element_blank(),
         panel.grid.minor = element_blank(),
@@ -773,8 +773,8 @@ Calibration_plot_Y <- ggplot(Calibration_pb_yield, aes(x = species, y = 1 - rati
     panel.grid.major.y = element_blank(),
     panel.grid.minor = element_blank(),
     panel.border = element_rect(color = "black", size = 0.8),
-    axis.title = element_text(size = 9, face = "bold"),
-    axis.text = element_text(size = 7, face = "bold"),
+    axis.title = element_text(size = 10, face = "bold"),
+    axis.text = element_text(size = 10, face = "bold"),
     legend.position = "none",
     legend.text = element_text(size = 5, face = "bold"),
     panel.spacing = unit(0.5, "lines"),
@@ -810,8 +810,8 @@ Calibration_plot_B <- ggplot(Calibration_pb_biomass, aes(x = species, y = 1 - ra
     panel.grid.major.y = element_blank(),
     panel.grid.minor = element_blank(),
     panel.border = element_rect(color = "black", size = 0.8),
-    axis.title = element_text(size = 9, face = "bold"),
-    axis.text = element_text(size = 7, face = "bold"),
+    axis.title = element_text(size = 10, face = "bold"),
+    axis.text = element_text(size = 10, face = "bold"),
     legend.position = "none",
     legend.text = element_text(size = 5, face = "bold"),
     panel.spacing = unit(0.5, "lines"),
