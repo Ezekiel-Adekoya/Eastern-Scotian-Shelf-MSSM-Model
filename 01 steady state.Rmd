@@ -438,13 +438,12 @@ If needed, tuned reproduction_level to produce desire Fmsy for each species (vie
    params <- steady(params)
    
    #check cod
-   plotYieldVsF(params,species = 1)
-   
+   plotYieldVsF(params,species =9)
+   getYieldVsF(params,species = 9)
 ```
 
 
 Check YieldvsF plots for each species, ensuring dome shaped and ideally a peak yield roughly around expected single-species Fmsy
-
 
 ```{r}
 # # # # Loop through and then scroll though all  plots
@@ -518,7 +517,7 @@ plotFeedingLevel(params)
 ```{r}
 custom_labels <- c(
   "COD(ATLANTIC)" = "ATLANTIC COD",
-  "HERRING(ATLANTIC)" = "HERRING",
+  "HERRING(ATLANTIC)" = "ATLANTIC HERRING",
   "TURBOT, GREENLAND HALIBUT" = "GREENLAND HALIBUT",
   "SANDLANCES" = "SAND LANCE"
 )
@@ -555,7 +554,7 @@ Check diet proportions of each species in predator diets, can compare with Table
 #Calculate proportion of each species in each species diet across pred and prey  sizes 
 diet<-data.frame(melt(apply(getDiet(params)[,which(params@w>10),1:13], c(1,3),sum)/rowSums(apply(getDiet(params)[,which(params@w>10),1:13], c(1,3),sum)[,])))
 
-predator<-levels(diet $predator)<- c("AMERICAN PLAICE", "ATLANTIC COD","ATLANTIC HALIBUT", "HERRING","REDFISH UNSEPARATED", "GREENLAND HALIBUT", "HADDOCK","SANDLANCES", "SILVER HAKE", "SPINY DOGFISH",  "WHITE HAKE", "WITCH FLOUNDER", "YELLOWTAIL FLOUNDER")
+predator<-levels(diet $predator)<- c("AMERICAN PLAICE", "ATLANTIC COD","ATLANTIC HALIBUT", "ATLANTIC HERRING","REDFISH UNSEPARATED", "GREENLAND HALIBUT", "HADDOCK","SANDLANCES", "SILVER HAKE", "SPINY DOGFISH",  "WHITE HAKE", "WITCH FLOUNDER", "YELLOWTAIL FLOUNDER")
 diet <- diet %>%
   rename(Prey= prey, Predator= predator, Ratio = value )
 diet_interaction <- ggplot(diet, aes(fill = Prey, x = Predator, y = Ratio)) + 

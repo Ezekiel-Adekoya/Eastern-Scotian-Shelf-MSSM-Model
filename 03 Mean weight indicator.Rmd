@@ -216,6 +216,7 @@ sim_upper2<-df_sim_2 |> pivot_longer(c(1:13)) |> mutate(Year=year,Species=as.fac
 ```
 
 
+
 ```{r}
 
 sim1 <-data.frame(Species=sim_mean1$Species, 
@@ -271,9 +272,13 @@ time_mw <- rbind(sim1,sim2)
 #time_mw <- time_series |> rename(Biomass=Biomass_Obs)
 
 time_mw <- time_mw  %>%
-  mutate(scen = ifelse(Year<1986,
-                         "Calibration",scen))
-species<-levels(time_mw$Species)<- c("AMERICAN PLAICE", "ATLANTIC COD","ATLANTIC HALIBUT", "HERRING","REDFISH UNSEPARATED", "GREENLAND HALIBUT", "HADDOCK","SAND LANCE", "SILVER HAKE", "SPINY DOGFISH",  "WHITE HAKE", "WITCH FLOUNDER", "YELLOWTAIL FLOUNDER")
+  mutate(scen = ifelse(Year<1986, "Calibration",scen))
+species<-levels(time_mw$Species)<- c("AMERICAN PLAICE", "ATLANTIC COD","ATLANTIC HALIBUT", "ATLANTIC HERRING","REDFISH UNSEPARATED", "GREENLAND HALIBUT", "HADDOCK","SAND LANCE", "SILVER HAKE", "SPINY DOGFISH",  "WHITE HAKE", "WITCH FLOUNDER", "YELLOWTAIL FLOUNDER")
+time_mw <- time_mw %>%
+  mutate(Species = recode(Species,
+                          "HERRING" = "ATLANTIC HERRING"))
+
+
 ```
 
 
@@ -283,8 +288,9 @@ time_mw <- time_mw |> arrange(Species) |> mutate(Species=factor(Species,species)
 time_mw <- time_mw %>%
   rename(Scenario =  scen )
 Mean_weight_plot <- ggplot(time_mw, aes(x = Year, y = Mean_weight, colour = Scenario, fill = Scenario)) +
-  facet_wrap(~factor(Species, levels = c("AMERICAN PLAICE", "ATLANTIC COD","ATLANTIC HALIBUT", "HERRING","REDFISH UNSEPARATED", "GREENLAND HALIBUT", "HADDOCK","SAND LANCE", "SILVER HAKE", "SPINY DOGFISH",  "WHITE HAKE", "WITCH FLOUNDER", "YELLOWTAIL FLOUNDER")), scales="free") +
-  geom_point(aes(y = Mean_weight), colour = "black", size = 0.5) +
+  facet_wrap(~factor(Species, levels = c("AMERICAN PLAICE", "ATLANTIC COD","ATLANTIC HALIBUT", "ATLANTIC HERRING","REDFISH UNSEPARATED", "GREENLAND HALIBUT", "HADDOCK","SAND LANCE", "SILVER HAKE", "SPINY DOGFISH",  "WHITE HAKE", "WITCH FLOUNDER", "YELLOWTAIL FLOUNDER")), scales="free") +
+ # geom_point(aes(y = Mean_weight), colour = "black", size = 0.5) +
+   geom_point(aes(shape = "Mean_weight"), colour = "black", size = 1.2) +
   geom_ribbon(aes(ymin = sim_lower, ymax = sim_upper), alpha = 0.3, colour = NA) +
   geom_line(aes(y = sim_mean)) +
   scale_colour_manual(name = NULL,  # Removes legend title
@@ -297,22 +303,21 @@ Mean_weight_plot <- ggplot(time_mw, aes(x = Year, y = Mean_weight, colour = Scen
 
   # Add vertical reference line
   geom_vline(xintercept = 1986, linetype = "dashed", color = "black") +
-
+  scale_shape_manual(name =  NULL, values = c("Mean_weight" = 16),labels = c("Observed mean weight"))+
   # Apply clean theme and style customizations
   theme_pubr() +
   theme(
-    legend.position = "bottom",
-    legend.text = element_text(face = "bold"),
-    axis.title.x = element_text(face = "bold"),
-    axis.title.y = element_text(face = "bold"),
-    strip.text = element_text(face = "bold")
-  ) +
+   legend.position = "bottom",
+    legend.text = element_text(face = "bold", size = 15),
+    axis.title.x = element_text(face = "bold", size = 15),
+    axis.title.y = element_text(face = "bold", size = 15),
+    strip.text = element_text(face = "bold", size = 12))+
   guides(colour = guide_legend(title = NULL), fill = guide_legend(title = NULL))
 
 # Display the plot
 
   guides(colour = guide_legend(title = NULL), fill = guide_legend(title = NULL))  # Remove legend headings
-ggsave(filename = paste0(save_dir, "Mean_weight_plot.jpeg"), plot = Mean_weight_plot,width = 11, height = 7.5, units = "in",dpi = 400)
+ggsave(filename = paste0(save_dir, "Mean_weight_plot.jpeg"), plot = Mean_weight_plot,width = 16, height = 11, units = "in",dpi = 400)
 Mean_weight_plot
 ```
 
@@ -353,7 +358,6 @@ species_name_map <- c(
   "YELLOWTAIL FLOUNDER" = "YELLOWTAIL FLOUNDER"
 )
 
-ggsave(filename = paste0(save_dir, "cor_plot.jpeg"), plot = cor_plot,width = 11, height = 7.5, units = "in",dpi = 400)
 ```
 
 
@@ -449,6 +453,46 @@ cor_plot <- ggplot(cor_results_long, aes(x = Variable, y = value, fill = scen)) 
 cor_plot
  ggsave(filename = paste0(save_dir, "cor_plot.jpeg"), plot = cor_plot,width = 11, height = 7.5, units = "in",dpi = 400)
 ```
+
+
+```{r}
+library(ggplot2)
+library(ggpubr)
+cor_plot <- ggplot(cor_results_long, aes(x = value, y = Variable, fill = scen)) +
+  geom_violin(trim = FALSE, scale = "width", alpha = 0.8, color = "white", linewidth = 0.8) +
+  stat_summary(fun = median, geom = "point", size = 2, color = "white",
+               position = position_dodge(width = 0.9)) +
+  #geom_vline(xintercept = 0, linetype = "dashed", color = "grey50", linewidth = 0.6) +
+  scale_fill_manual(values = c(
+    "Fishing without additional predation mortality" = "#2E86AB",
+    "Fishing with additional predation mortality" = "#E63946"
+  )) +
+  labs(
+    x = "Spearman Correlation",
+    y = NULL,
+    fill = NULL  # remove legend title
+  ) +
+  theme_pubr() +
+  theme(
+    axis.text.x = element_text(size = 12, face = "bold", color = "grey20"),
+    axis.text.y = element_text(size = 12, face = "bold", color = "grey20"),
+    axis.title.x = element_text(size = 12, face = "bold", color = "grey20", margin = margin(t = 10)),
+    axis.title.y = element_text(size = 12, face = "bold", color = "grey20", margin = margin(r = 10)),
+    legend.text = element_text(size = 10, face = "bold", color = "grey20"),
+    legend.position = "bottom",
+    legend.background = element_rect(fill = "white", color = NA),
+    legend.key = element_rect(fill = "white", color = NA),
+    
+    # Add a black border around the plot panel
+    panel.border = element_rect(color = "black", fill = NA, linewidth = 0.8)
+  )
+cor_plot
+ ggsave(filename = paste0(save_dir, "cor_plot_option.jpeg"), plot = cor_plot,width = 11, height = 7.5, units = "in",dpi = 400)
+```
+```
+
+
+
 
 
 
