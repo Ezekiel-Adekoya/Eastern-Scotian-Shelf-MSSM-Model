@@ -179,8 +179,7 @@ getMeanSpeciesWeight<-function(sim, species = NULL,...)
 sim_mw1 <- lapply(
   sims_scen1,
   getMeanSpeciesWeight,
-  min_w = biomass_cutoff$min_w, 
-  max_w = biomass_cutoff$max_w
+  min_w = biomass_cutoff$min_w
 )
 
 df_sim_1<-do.call(rbind.data.frame, sim_mw1)
@@ -193,8 +192,7 @@ df_sim_1$year<-rep(1970:2010,100)
 sim_mw2 <- lapply(
   sims_scen2,
   getMeanSpeciesWeight,
-  min_w = biomass_cutoff$min_w, 
-  max_w = biomass_cutoff$max_w
+  min_w = biomass_cutoff$min_w
 )
 
 df_sim_2<-do.call(rbind.data.frame, sim_mw2)

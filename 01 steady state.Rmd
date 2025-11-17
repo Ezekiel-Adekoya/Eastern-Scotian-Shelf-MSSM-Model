@@ -283,6 +283,68 @@ params<-setInteraction(params,inter)
 
 ```
 
+```{r}
+# Define new, friendly species names
+species_friendly <- c(
+  "AMERICAN PLAICE", "ATLANTIC COD", "ATLANTIC HALIBUT", "ATLANTIC HERRING",
+  "REDFISH UNSEPARATED", "GREENLAND HALIBUT", "HADDOCK", "SAND LANCE",
+  "SILVER HAKE", "SPINY DOGFISH", "WHITE HAKE", "WITCH FLOUNDER", "YELLOWTAIL FLOUNDER"
+)
+
+# Rename rows and columns
+rownames(inter) <- species_friendly
+colnames(inter) <- species_friendly
+
+
+# 1. Convert your matrix `inter` to long format
+inter_long <- reshape2::melt(inter, 
+                             varnames = c("Predator","Prey"), 
+                             value.name = "InteractionStrength")
+
+# 2. Choose a color palette (e.g. Brewer “YlOrRd” for sequential, or “RdBu” for diverging)
+pal <- RColorBrewer::brewer.pal(n = 9, name = "Blues")
+
+# Heatmap plot
+library(ggplot2)
+library(viridis)
+
+# Publication-ready heatmap
+heatmap_plot <- ggplot(inter_long, aes(x = Prey, y = Predator, fill = InteractionStrength)) +
+  geom_tile(color = "white", size = 0.1) +
+  scale_fill_gradientn(
+    colors = pal,  # define your color palette
+    name = "Interaction\nStrength",
+    limits = c(min(inter_long$InteractionStrength), max(inter_long$InteractionStrength))
+  ) +
+  labs(
+    x = "Prey Species",
+    y = "Predator Species"
+  ) +
+  theme_minimal(base_family = "Arial") +
+  theme(
+    # Bold axis labels
+    axis.text.x = element_text(angle = 90, hjust = 0.5, vjust = 0.5, size = 10, face = "bold"),
+    axis.text.y = element_text(size = 11, face = "bold"),
+    axis.title = element_text(size = 11, face = "bold"),
+    # Legend styling
+    legend.title =element_blank(),
+    legend.text = element_text(size = 9, face = "bold"),
+    
+    # Panel styling
+    panel.grid = element_blank(),
+    panel.border = element_rect(color = "black", fill = NA, size = 0.5),
+    panel.background = element_blank()
+  )
+
+# Display the plot
+print(heatmap_plot)
+
+
+ggsave(filename = paste0(save_dir, "heatmap_plotr.jpeg"), plot = heatmap_plot,
+       width = 10, height = 8.5, units = "in",dpi = 300)
+```
+
+
 Run params to steady state
 ```{r}
 # Plot initial model spectra (before running steady state)
@@ -871,53 +933,78 @@ fishing_history = readRDS("Ess_data/relative_interp_effort_nafo.RDS")
 effort_df<-fishing_history[as.character("1970":"2010"),]
 
 effort_df <- as.data.frame(fishing_history) %>%
-
   rename(
     "ATLANTIC COD" = "COD(ATLANTIC)",
     "GREENLAND HALIBUT" = "TURBOT, GREENLAND HALIBUT",
-    "ATLANTIC HERRING" = "HERRING(ATLANTIC)")
+    "ATLANTIC HERRING" = "HERRING(ATLANTIC)",
+    "SAND LANCE" = "SANDLANCES")
 
 # Add a Year column (assuming row names are years)
 
 effort_df$Year <- as.numeric(rownames(effort_df))
+# Ensure your years match effort_df
+# Years in effort_df
+years <- effort_df$Year
 
+# Create Additional_mortality vector
+Additional_mortality <- numeric(length(years))  # initialize with zeros
+
+# Indices for years 1986-2010
+idx <- which(years >= 1985 & years <= 2010)
+
+# Linear increase from 0 to 1 over these indices
+Additional_mortality[idx] <- seq(0, 1, length.out = length(idx))
+
+# Add to effort_df
+effort_df$Additional_mortality <- Additional_mortality
+effort_df <- as.data.frame(effort_df) %>%
+  rename(  "ADDITIONAL MORTALITY" = "Additional_mortality") %>% filter(Year <= 2010)
 # Reshape the data from wide to long format
 
-effort_long <- pivot_longer(effort_df,cols = -Year,names_to = "Species",values_to = "Effort")
+effort_long <- pivot_longer(effort_df, cols = -Year, names_to = "Species", values_to = "Effort")
 
- 
+# Assign linetype: dashed for Additional Mortality, solid for all others
+effort_long <- effort_long %>%
+  mutate(linetype = ifelse(Species == "ADDITIONAL MORTALITY", "dashed", "solid"),
+         color = ifelse(Species == "ADDITIONAL MORTALITY", "black", "black"))
 
-# Plot effort against years, faceted by species
-
-Fishing_effort_plot = ggplot(effort_long, aes(x = Year, y = Effort)) +
-
-  geom_line() +
-  facet_wrap(~Species, nrow = 4) +  # 5 panels per row
-  theme_minimal() +
-  labs(x = "Year", y = "Relative Fishing Effort") +
-  theme(strip.text = element_text(size = 10, face = "bold"))+
-  theme(
-    panel.grid = element_blank(),
-    panel.background = element_blank(),
-    legend.position = "right",
-    legend.direction = "vertical",
-    legend.spacing.x = unit(0.01, "cm"),
-    legend.title = element_blank(),
-    legend.text = element_text(size = 9, face = "bold"),
-    axis.text = element_text(size = 9, face = "bold"),
-    axis.title.x = element_text(size = 9, face = "bold"),
-    axis.title.y = element_text(size = 9, face = "bold"),
-    plot.margin = margin(b = 1, unit = "lines"),
-    panel.border = element_rect(color = "black", fill = NA, size = 0.5),
-    strip.background = element_blank(),
-    strip.text = element_text(size = 9, face = "bold"),
-    legend.box.background = element_blank()
+# Plot
+Fishing_effort_plot <- ggplot(effort_long, aes(x = Year, y = Effort, group = Species, linetype = linetype)) +
+  geom_line(aes(color = color), linewidth = 0.7) +
+  facet_wrap(~Species, nrow = 4, scales = "free_y") +
+  labs(
+    x = "Year",
+    y = "Relative Fishing Effort"
   ) +
-  scale_linetype_manual(values = "dotted", name = "")
+  scale_linetype_identity() +
+  scale_color_identity() +  # use color as is
+  theme_bw(base_family = "Arial") +
+  theme(
+    panel.grid.major = element_blank(),
+    panel.grid.minor = element_blank(),
+    panel.background = element_blank(),
+    panel.border = element_rect(color = "black", size = 0.5),
+    strip.background = element_rect(fill = "#f0f0f0"),
+    strip.text = element_text(size = 7, face = "bold"),
+    axis.text = element_text(size = 7, face = "bold", color = "black"),
+    axis.title.x = element_text(size = 8, face = "bold", margin = margin(t = 6)),
+    axis.title.y = element_text(size = 8, face = "bold", margin = margin(r = 6)),
+    legend.position = "none",
+    plot.margin = margin(t = 5, r = 5, b = 5, l = 5, unit = "pt")
+  ) +
+  scale_x_continuous(
+    breaks = scales::pretty_breaks(n = 5),
+    expand = expansion(mult = c(0.02, 0.02))
+  ) +
+  scale_y_continuous(
+    expand = expansion(mult = c(0.02, 0.05))
+  )
 
-ggsave(filename = paste0(save_dir, "Fishing_effort_plot.jpeg"), plot = Fishing_effort_plot,
-       width = 9,height = 9,units = "in",dpi = 400)
+Fishing_effort_plot
+ggsave(filename = paste0(save_dir, "Fishing_effort_plott.jpeg"), plot = Fishing_effort_plot,
+       width = 9,height = 7,units = "in",dpi = 400)
 ```
+
 
 
 ## Check plots with time series effort forcing on 
